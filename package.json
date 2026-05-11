@@ -1,0 +1,26 @@
+{
+  "name": "polymarket-chain-monitor",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node ws-bridge.js",
+    "monitor": "node monitor-polymarket-ws.js",
+    "positions": "node get-positions.js",
+    "check": "node --check ws-bridge.js && node --check monitor-polymarket-ws.js && node --check get-positions.js",
+    "trade:check": "node -e \"require('./trade-executor').testConnectivity({derive:false}).then(x=>console.log(JSON.stringify(x,null,2))).catch(e=>{console.error(e);process.exit(1)})\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "ethers": "^6.16.0",
+    "https-proxy-agent": "^9.0.0",
+    "node-fetch": "^3.3.2",
+    "ws": "^8.20.0",
+    "@polymarket/clob-client-v2": "^1.0.0",
+    "viem": "^2.37.0"
+  }
+}
