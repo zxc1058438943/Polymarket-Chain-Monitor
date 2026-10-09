@@ -50,10 +50,12 @@ function checkInlineHtmlScripts() {
     if (/\bsrc\s*=/i.test(match[1])) continue;
     const source = match[2].trim();
     if (!source) continue;
+    const scriptNumber = checked + 1;
     try {
-      new vm.Script(source, { filename: `index.html:inline-script-${++checked}` });
+      new vm.Script(source, { filename: `index.html:inline-script-${scriptNumber}` });
+      checked = scriptNumber;
     } catch (error) {
-      throw new Error(`index.html 内嵌脚本语法错误（第 ${checked + 1} 个脚本）：${error.message}`);
+      throw new Error(`index.html 内嵌脚本语法错误（第 ${scriptNumber} 个脚本）：${error.message}`);
     }
   }
   assert.ok(checked > 0, "index.html 没有找到可检查的内嵌脚本");
@@ -107,6 +109,10 @@ function checkSafeEnvTemplate() {
   assert.equal(values.AUTO_TRADE_DRY_RUN, "true", "示例环境必须默认启用 dry-run");
   assert.equal(values.AUTO_TRADE_ALLOW_LIVE_AUTO, "false", "示例环境不得默认允许实盘自动交易");
   assert.equal(values.KILL_SWITCH, "true", "示例环境应默认打开紧急停止开关");
+  assert.equal(values.AUTO_EXIT_ENABLED, "false", "示例环境必须默认关闭自动退出");
+  assert.equal(values.ACCOUNT_BALANCE_PUSH_ENABLED, "false", "示例环境必须默认关闭账户余额推送");
+  assert.equal(values.QQ_TRADE_COMMANDS_ENABLED, "false", "示例环境必须默认关闭 QQ 交易命令");
+  assert.equal(values.QQ_SELL_COMMAND_MODE, "paper", "示例环境的 QQ 卖出模式必须默认使用模拟模式");
 }
 
 function main() {
