@@ -9,12 +9,14 @@ npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
 
-# Runtime logs and local state
+# Runtime logs and locally persisted state (never commit account-specific data)
 *.log
 trade-log.jsonl
 btc5m-logs/
 watch-wallets.json
 tracked-projects.json
+auto-trade-wallets.json
+!auto-trade-wallets.example.json
 
 # OS/editor
 .DS_Store
