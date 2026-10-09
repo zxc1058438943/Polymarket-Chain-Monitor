@@ -128,8 +128,9 @@ function checkGitignore() {
   assert.match(ignored, /^trade-log\.jsonl$/m, ".gitignore 应忽略运行日志");
   const realEnvPath = path.join(root, ".env");
   if (fs.existsSync(realEnvPath)) {
-    const result = execFileSync("git", ["check-ignore", "-q", ".env"], { cwd: root, stdio: "ignore" });
-    assert.equal(result, undefined);
+    // A zero exit code means the local .env is ignored. Let execFileSync throw
+    // on non-zero status; its return value depends on the stdio configuration.
+    execFileSync("git", ["check-ignore", "-q", ".env"], { cwd: root, stdio: "ignore" });
   }
 }
 
