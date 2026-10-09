@@ -116,7 +116,7 @@ function checkSafeEnvTemplate() {
 }
 
 function checkJsonFiles() {
-  for (const relativePath of ["auto-trade-wallets.json"]) readJson(relativePath);
+  for (const relativePath of ["auto-trade-wallets.example.json"]) readJson(relativePath);
 }
 
 function checkGitignore() {
@@ -126,12 +126,20 @@ function checkGitignore() {
   assert.match(ignored, /^\.env$/m, ".gitignore 应忽略本地 .env");
   assert.match(ignored, /^node_modules\/$/m, ".gitignore 应忽略 node_modules");
   assert.match(ignored, /^trade-log\.jsonl$/m, ".gitignore 应忽略运行日志");
-  const realEnvPath = path.join(root, ".env");
-  if (fs.existsSync(realEnvPath)) {
-    // A zero exit code means the local .env is ignored. Let execFileSync throw
-    // on non-zero status; its return value depends on the stdio configuration.
-    execFileSync("git", ["check-ignore", "-q", ".env"], { cwd: root, stdio: "ignore" });
-  }
+  assert.match(ignored, /^auto-trade-wallets\.json$/m, ".gitignore 应忽略真实跟单钱包配置");
+  assert.match(ignored, /^watch-wallets\.json$/m, ".gitignore 应忽略本地监控钱包配置");
+}
+
+function checkTradeModuleFailsClosed() {
+  const source = fs.readFileSync(path.join(root, "ws-bridge.js"), "utf8");
+  const executorPath = path.join(root, "trade-executor.js");
+  if (fs.existsSync(executorPath)) return;
+  assert.match(source, /const TRADE_MODULE_UNAVAILABLE/,
+    "缺少 trade-executor.js 时必须给出明确的不可用状态");
+  assert.match(source, /if \(!tradeExecutor\) \{\s*sendJson\(res, 503,/s,
+    "缺少交易执行器时，写操作交易接口必须快速失败");
+  assert.match(source, /available: false, config: null, message: TRADE_MODULE_UNAVAILABLE/,
+    "交易状态接口应将执行器缺失表示为不可用，而不是可交易");
 }
 
 function main() {
@@ -142,6 +150,7 @@ function main() {
   checkSafeEnvTemplate();
   checkJsonFiles();
   checkGitignore();
+  checkTradeModuleFailsClosed();
   console.log("准入自检通过：依赖清单、JavaScript 语法、HTML 内嵌脚本、README 本地链接、安全环境默认值、Git 忽略规则与 JSON 配置均正常。");
 }
 if (require.main === module) {
@@ -153,4 +162,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { main, checkPackageMetadata, checkJavaScriptSyntax, checkInlineHtmlScripts, checkReadmeLinks, checkSafeEnvTemplate, checkJsonFiles, checkGitignore };
+module.exports = { main, checkPackageMetadata, checkJavaScriptSyntax, checkInlineHtmlScripts, checkReadmeLinks, checkSafeEnvTemplate, checkJsonFiles, checkGitignore, checkTradeModuleFailsClosed };
