@@ -43,7 +43,7 @@ test("formatPosition normalizes numbers and optional fields", () => {
 test("fetchPositions forms a bounded Data API request and formats results", async () => {
   let requestedUrl;
   const fakeFetch = async (url) => {
-    requestedUrl = url;
+    requestedUrl = new URL(url);
     return {
       ok: true,
       json: async () => [{
