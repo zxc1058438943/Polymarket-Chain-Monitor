@@ -1,23 +1,23 @@
 # Polymarket Chain Monitor
 
-Polymarket 多钱包链上监控面板，包含 Polygon 事件监听、钱包信号聚合、Web UI，以及可选的 BTC 5 分钟行情分析模块。
+Polymarket 多钱包链上监控面板：监听 Polygon 交易事件、聚合钱包活动信号，并通过本地 Web UI 查看监控结果。仓库同时包含一个独立的公开持仓查询 CLI，以及可选的 BTC 5 分钟市场分析模块。
 
-> **当前仓库的交易执行边界：** 当前版本没有包含 `trade-executor.js`，因此不要将本仓库当作可直接使用的实盘自动交易程序。默认只用于监控和研究；示例环境会关闭自动交易并打开紧急停止开关。不要把私钥、API 密钥或真实的 `.env` 文件提交到 Git。
+> **安全边界：** 当前仓库并未包含 `trade-executor.js`，因此不具备完整的真实下单实现。交易接口会明确报告执行器不可用。不要把缺失的执行器当成可正常实盘的功能，也不要为了通过检查打开真实交易开关。
 
-## 功能
+## 功能和边界
 
-- Polygon WebSocket 链上事件监听，解析相关交易与代币转移日志。
-- 多钱包监控与信号聚合，可通过 Web UI 查看监控状态和信号。
-- 可选 QQ Bot 通知（需要自行填写应用凭证）。
-- 可选 BTC 5 分钟市场发现、Binance K 线与技术指标分析；需要时再自行配置 AI API。
-- CLI 持仓查询工具，通过 Polymarket Data API 查询指定钱包公开持仓。
-- 准入自检、Node.js 单元测试和 GitHub Actions 自动检查。
+- Polygon WebSocket 事件监控，解析支持的订单成交及代币转账事件。
+- 多钱包信号聚合与本地 Web UI。
+- 可选的 QQ Bot 消息通知。
+- 可选的 BTC 5 分钟市场分析和技术指标。
+- 通过 Polymarket Data API 查询公开钱包持仓；只读、不签名、不下单。
+- 统一项目准入检查、离线单元测试和 GitHub Actions 工作流。
 
 ## 环境要求
 
 - Node.js 18 或更高版本。
 - npm。
-- 如所在网络不能直接访问 Polymarket / Binance API，可配置本机代理。
+- Polygon WebSocket RPC。根据使用的功能，可再设置 HTTP RPC、代理和通知配置。
 
 ## 安装
 
@@ -27,7 +27,7 @@ cd Polymarket-Chain-Monitor
 npm ci
 ```
 
-Windows PowerShell 创建本地配置：
+Windows PowerShell：
 
 ```powershell
 Copy-Item .env.example .env
@@ -39,19 +39,19 @@ macOS / Linux：
 cp .env.example .env
 ```
 
-编辑本地 `.env`，至少填写你自己使用的 Polygon RPC。配置模板中的交易相关设置是安全默认值，不要为了通过检查而开启实盘开关。
+编辑本机 `.env`，填写自己的 `POLYGON_WSS` 等配置。不要提交真实的 `.env`、私钥、API 密钥、令牌或私人监控数据。初次启动请使用只读配置和模拟模式。
 
-## 启动和检查
+## 启动与验证
 
-启动 Web UI 与链上监控：
+启动监控服务与 Web UI：
 
 ```bash
 npm start
 ```
 
-默认界面地址为 `http://127.0.0.1:3001`。若端口已占用，可在本地 `.env` 中修改 `UI_PORT`。
+默认 UI 地址：`http://127.0.0.1:3001`。需在本机 `.env` 中填写 `POLYGON_WSS`，否则主进程会拒绝启动。端口可通过 `UI_PORT` 修改。
 
-运行代码与项目结构准入检查：
+运行项目准入自检：
 
 ```bash
 npm run check
@@ -63,60 +63,64 @@ npm run check
 npm test
 ```
 
-查询某个钱包的持仓：
+自检覆盖 JavaScript 语法、HTML 内嵌脚本语法、package/lock 依赖一致性、README 本地链接、环境模板安全默认值、运行日志忽略规则和钱包 JSON 格式。单元测试覆盖钱包地址参数校验、持仓字段规范化、API 请求参数、HTTP 异常、响应格式异常与分页上限。
+
+### 查询公开持仓
 
 ```bash
 npm run positions -- 0xYourWalletAddress
 ```
 
-也可设置 `PM_FUNDER_ADDRESS` 或 `WATCH_WALLET` 后运行 `npm run positions`。增加 `--json` 参数可输出 JSON 格式：
+也可以设置 `PM_FUNDER_ADDRESS` 或 `WATCH_WALLET`。输出 JSON：
 
 ```bash
 npm run positions -- 0xYourWalletAddress --json
 ```
 
-持仓查询只读取公开 Data API，不签名、不下单。
+默认最多读取 10 页，每页最多 500 条记录。达到上限时 CLI 会输出提示，允许通过 `POSITIONS_MAX_PAGES` 提高上限。遇到网络异常、非 2xx HTTP 响应或错误 JSON 时，程序会返回非零退出状态。
 
-## 项目结构
+## 文件结构
 
-| 路径 | 用途 |
+| 文件 | 作用 |
 | --- | --- |
-| `ws-bridge.js` | 主服务：链上监听、HTTP 服务、WebSocket 桥接与可选通知 |
-| `index.html` | Web UI |
-| `monitor-polymarket-ws.js` | 旧版单钱包监听脚本，仅用于兼容/参考 |
-| `btc-5m-analyzer.js` | 可选 BTC 5 分钟行情分析模块 |
-| `get-positions.js` | 查询公开钱包持仓的 CLI |
-| `auto-trade-wallets.json` | 钱包跟踪/跟单配置数据 |
-| `.env.example` | 不含凭证的本地配置模板 |
-| `.gitignore` | 忽略本地配置、依赖和运行日志 |
-| `scripts/check-repo.js` | 检查语法、依赖锁定、README 本地链接和安全默认值 |
-| `test/repo.test.js` | 持仓查询工具的离线单元测试 |
-| `.github/workflows/quality.yml` | 推送和 PR 时自动运行检查与测试 |
+| `ws-bridge.js` | 主监控服务、HTTP API、WebSocket 桥接与通知 |
+| `index.html` | 本地 Web UI |
+| `monitor-polymarket-ws.js` | 旧版单钱包监听脚本，不应与主服务同时运行 |
+| `btc-5m-analyzer.js` | 可选 BTC 5 分钟分析模块，默认关闭 |
+| `get-positions.js` | 只读持仓查询 CLI |
+| `auto-trade-wallets.json` | 自动跟单配置数据；运行时可能被服务更新 |
+| `.env.example` | 不含凭据的安全配置模板 |
+| `.gitignore` | 排除本地环境和运行产物 |
+| `scripts/check-repo.js` | 项目结构、语法、依赖与安全配置自检 |
+| `test/repo.test.js` | 持仓 CLI 的离线单元测试 |
+| `.github/workflows/quality.yml` | 推送和 PR 时触发的自动检查 |
 
-## 环境配置与安全
+## 交易和隐私安全
 
-- **不要提交真实的 `.env` 文件。** `.env.example` 只放占位符；API 凭证应留在自己的本地环境。
-- **默认不交易。** 保持 `AUTO_TRADE_ENABLED=false`、`AUTO_TRADE_MODE=paper`、`AUTO_TRADE_DRY_RUN=true`、`AUTO_TRADE_ALLOW_LIVE_AUTO=false`。
-- 首次运行建议仅使用只读 RPC 和公开 Data API。不要把真实私钥粘贴到 Issue、日志或聊天中。
-- 钱包地址本身是公开链上标识，但仍建议不要把私人监控名单及账户配置提交到公开仓库。
-- `trade-executor.js` 未包含在当前仓库中；涉及真实下单、自动退出或止盈止损的功能不能仅凭 README 声明视为已经可用。
+示例配置默认设置 `AUTO_TRADE_ENABLED=false`、`AUTO_TRADE_MODE=paper`、`AUTO_TRADE_DRY_RUN=true`、`AUTO_TRADE_ALLOW_LIVE_AUTO=false`、`AUTO_EXIT_ENABLED=false`、`QQ_TRADE_COMMANDS_ENABLED=false` 和 `KILL_SWITCH=true`。除非你已在独立环境审查交易执行器、密钥权限和风险限额，否则不要启用实盘功能。
 
-## 模块说明
+目前 `trade-executor.js` 不在仓库文件列表中，交易连接、凭证派生、下单和交易退出功能不能视为已经验证可用。账户公开持仓查询与真实交易执行是两件不同的事。
 
-### `ws-bridge.js`
+原仓库曾公开过。即便将它改为私有，也不能满足“从未公开过”的仓库准入条件。若需要用于要求私有且从未公开的开发过程评测，应选用符合条件的真实私有项目，而不是试图通过改名或补交提交改变历史事实。
 
-主监控服务。需要在本地 `.env` 中配置 Polygon WebSocket RPC（`POLYGON_WSS`），并按需设置 `POLYGON_HTTP`、`WATCH_WALLET`、`PROXY_URL` 等变量。
+## 设计取舍与验证策略
 
-### `btc-5m-analyzer.js`
+1. **持仓查询与交易执行分离。** 查询 CLI 只读访问公开 Data API，不依赖交易私钥或 CLOB 凭证，便于离线单测，也减少误触真实订单的风险。
+2. **分页有明确上限。** 避免 API 数据异常时无边界请求；到达上限时提示数据可能被截断，调用方可主动增加 `POSITIONS_MAX_PAGES`。
+3. **外部数据需规范化。** Data API 的数值字段统一转为有限数字，布尔字段用明确的真值列表解析，防止字符串 `"false"` 被 JavaScript 当作真。
+4. **交易执行器缺失时快速失败。** 状态接口报告不可用，连接、凭证派生、测试下单和紧急停止写操作接口返回明确错误，而不是抛出难以理解的 500。
+5. **验证不依赖外网市场响应。** 单元测试使用模拟 fetch 响应，覆盖常规结果、空值/布尔字段、错误状态、错误响应结构以及分页边界。部署前仍需对真实 Polygon RPC 与 Data API 做只读连接验收。
 
-用于可选的 BTC 5 分钟市场分析。通过 `BTC5M_ENABLED` 显式启用前，请先配置并检查数据源；如需要 AI 分析，再填写 `BTC5M_AI_BASE_URL`、`BTC5M_AI_API_KEY` 和 `BTC5M_AI_MODEL`。该模块的分析输出不代表盈利保证。
+## 后续开发 TODO
 
-## 已知边界
-
-- 旧版 `monitor-polymarket-ws.js` 与主服务逻辑可能不同步，请不要同时启动。
-- 自动交易执行器没有随当前仓库提供；不要使用真实资金测试缺失的交易执行流程。
-- 公开 API、合约与市场响应格式可能发生变化；运行前请在模拟/只读环境确认连接和数据是否正常。
+1. **补齐交易执行器的可审计接口。** 当前 `ws-bridge.js` 仍有余额、跟单、退出与交易 API 调用依赖 `trade-executor.js`，但执行器文件不在仓库中；在恢复实盘能力前，需要先确定模块契约、失败语义、模拟模式与账户权限边界。
+2. **给主 HTTP API 增加统一鉴权与请求限制。** `UI_SECRET` 目前用于 UI 请求头，需逐条审计所有改变钱包列表、项目列表、配置和交易状态的路由，补未授权请求测试及速率限制，避免本机端口意外暴露时被调用。
+3. **为 Polygon WebSocket 增加可复现的日志回放测试。** 目前事件解析和聚合逻辑与长期连接、重连行为交织；应把代表性的 V1/V2 成交及 ERC 转账日志整理为脱敏 fixture，断言断线重连和重复日志不会重复发信号。
+4. **解决持仓查询分页截断的可观测性。** CLI 当前用页数上限保护 API；后续可增加明确的分页元数据、重试退避和请求 ID，以便在限流或 API 数据量增长时区分“持仓为空”和“只读到部分结果”。
+5. **为 BTC 5 分钟分析建立离线回放基准。** `btc-5m-analyzer.js` 依赖实时市场发现、行情和 AI 服务；应保存脱敏的市场快照与 K 线 fixture，测试超时、市场轮换、重复调度及结算日志，且在没有交易执行器时始终保持纯分析模式。
+6. **为本地运行产物建立独立的数据目录。** 主服务会读写监控钱包、跟踪项目和自动跟单 JSON；应统一通过可配置的数据目录加载和保存这些文件，并在启动时验证备份、格式迁移与写入失败的行为。
+7. **完善 PR/CI 的失败诊断。** 当前托管 Actions 的运行没有提供 runner 步骤或日志，需确认仓库的 Actions 可用性后，再确保 `npm ci`、`npm run check` 和 `npm test` 在真实 Node.js runner 上执行，并保存测试报告供审阅。
 
 ## 许可
 
-仓库当前未提供明确的开源许可证。除非仓库所有者另行授权，不应假定可以将代码重新发布或用于商业用途。
+当前仓库没有明确的开源许可证。未经代码所有者明确授权，不应假设允许重新发布或商业使用。
