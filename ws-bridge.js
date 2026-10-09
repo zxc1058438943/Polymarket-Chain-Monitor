@@ -26,9 +26,10 @@ try {
 } catch (err) {
   console.warn(`[交易模块] trade-executor.js 未加载，交易账户/下单测试功能不可用: ${err.message}`);
 }
+const TRADE_MODULE_UNAVAILABLE = "当前仓库未包含 trade-executor.js，真实下单、凭证派生和交易控制接口已禁用。";
 function requireTradeExecutor() {
   if (!tradeExecutor) {
-    throw new Error("交易模块不可用：请确认 trade-executor.js 存在，并已运行 npm install @polymarket/clob-client-v2 viem");
+    throw new Error(TRADE_MODULE_UNAVAILABLE);
   }
   return tradeExecutor;
 }
@@ -205,7 +206,7 @@ const AUTO_PRICE_FLOOR_MIN_VALUE_USD = envNumber("AUTO_PRICE_FLOOR_MIN_VALUE_USD
 
 // Account balance dashboard + periodic QQ summary.
 const ACCOUNT_BALANCE_POLL_MS = envNumber("ACCOUNT_BALANCE_POLL_MS", 60_000);
-const ACCOUNT_BALANCE_PUSH_ENABLED = envBool("ACCOUNT_BALANCE_PUSH_ENABLED", true);
+const ACCOUNT_BALANCE_PUSH_ENABLED = envBool("ACCOUNT_BALANCE_PUSH_ENABLED", false);
 const ACCOUNT_BALANCE_PUSH_INTERVAL_MS = envNumber("ACCOUNT_BALANCE_PUSH_INTERVAL_MS", 10 * 60_000);
 const ACCOUNT_BALANCE_PUSH_MIN_DELTA_USD = envNumber("ACCOUNT_BALANCE_PUSH_MIN_DELTA_USD", 0);
 // Compact QQ account summary + private QQ trade commands.
@@ -213,8 +214,8 @@ const ACCOUNT_BALANCE_PUSH_COMPACT = envBool("ACCOUNT_BALANCE_PUSH_COMPACT", tru
 const ACCOUNT_BALANCE_PUSH_MAX_POSITIONS = Math.max(1, envNumber("ACCOUNT_BALANCE_PUSH_MAX_POSITIONS", 8));
 const ACCOUNT_BALANCE_PUSH_INCLUDE_DUST = envBool("ACCOUNT_BALANCE_PUSH_INCLUDE_DUST", false);
 const ACCOUNT_QQ_POSITION_MIN_VALUE_USD = envNumber("ACCOUNT_QQ_POSITION_MIN_VALUE_USD", 0.01);
-const QQ_TRADE_COMMANDS_ENABLED = envBool("QQ_TRADE_COMMANDS_ENABLED", true);
-const QQ_SELL_COMMAND_MODE = cleanEnvValue(process.env.QQ_SELL_COMMAND_MODE) || "live"; // paper | sign | live
+const QQ_TRADE_COMMANDS_ENABLED = envBool("QQ_TRADE_COMMANDS_ENABLED", false);
+const QQ_SELL_COMMAND_MODE = cleanEnvValue(process.env.QQ_SELL_COMMAND_MODE) || "paper"; // paper | sign | live
 const QQ_SELL_COMMAND_ORDER_TYPE = (cleanEnvValue(process.env.QQ_SELL_COMMAND_ORDER_TYPE) || cleanEnvValue(process.env.AUTO_EXIT_ORDER_TYPE) || "FAK").toUpperCase();
 const QQ_SELL_COMMAND_MAX_SLIPPAGE = envNumber("QQ_SELL_COMMAND_MAX_SLIPPAGE", envNumber("AUTO_EXIT_MAX_SLIPPAGE", 0.05));
 const QQ_SELL_COMMAND_MIN_BID = envNumber("QQ_SELL_COMMAND_MIN_BID", envNumber("AUTO_EXIT_MIN_BID", 0.01));
@@ -3769,13 +3770,21 @@ const httpServer = http.createServer(async (req, res) => {
       return;
     }
     if (u.pathname === "/api/trade/status" && req.method === "GET") {
-      const ex = requireTradeExecutor();
+      if (!tradeExecutor) {
+        sendJson(res, 200, { ok: true, available: false, config: null, message: TRADE_MODULE_UNAVAILABLE, updatedAt: new Date().toISOString() });
+        return;
+      }
+      const ex = tradeExecutor;
       sendJson(res, 200, { ok: true, available: true, config: ex.publicTradeConfig(), updatedAt: new Date().toISOString() });
       return;
     }
     // Kill switch control endpoint (for emergency stop from UI)
     if (u.pathname === "/api/trade/kill-switch" && req.method === "GET") {
-      const ex = requireTradeExecutor();
+      if (!tradeExecutor) {
+        sendJson(res, 200, { ok: true, available: false, killSwitch: true, mode: "paper", dryRun: true, message: TRADE_MODULE_UNAVAILABLE, updatedAt: new Date().toISOString() });
+        return;
+      }
+      const ex = tradeExecutor;
       const cfg = ex.publicTradeConfig();
       sendJson(res, 200, {
         ok: true,
@@ -3787,7 +3796,11 @@ const httpServer = http.createServer(async (req, res) => {
       return;
     }
     if (u.pathname === "/api/trade/kill-switch" && req.method === "POST") {
-      const ex = requireTradeExecutor(); // FIX: was missing, caused ReferenceError
+      if (!tradeExecutor) {
+        sendJson(res, 503, { ok: false, available: false, error: TRADE_MODULE_UNAVAILABLE });
+        return;
+      }
+      const ex = tradeExecutor;
       const body = await readBody(req);
       // Parse the new kill switch value (0/1/true/false)
       const newKillSwitch = body.enabled !== undefined ? Boolean(body.enabled) : true;
@@ -3833,20 +3846,32 @@ const httpServer = http.createServer(async (req, res) => {
       return;
     }
     if (u.pathname === "/api/trade/connect" && req.method === "POST") {
-      const ex = requireTradeExecutor();
+      if (!tradeExecutor) {
+        sendJson(res, 503, { ok: false, available: false, error: TRADE_MODULE_UNAVAILABLE });
+        return;
+      }
+      const ex = tradeExecutor;
       const body = await readBody(req);
       const result = await ex.testConnectivity({ derive: Boolean(body.derive), tokenId: body.tokenId || "" });
       sendJson(res, 200, { ok: true, result, config: ex.publicTradeConfig(), updatedAt: new Date().toISOString() });
       return;
     }
     if (u.pathname === "/api/trade/derive-creds" && req.method === "POST") {
-      const ex = requireTradeExecutor();
+      if (!tradeExecutor) {
+        sendJson(res, 503, { ok: false, available: false, error: TRADE_MODULE_UNAVAILABLE });
+        return;
+      }
+      const ex = tradeExecutor;
       const result = await ex.deriveAndStoreCredentials();
       sendJson(res, 200, { ok: true, result, config: ex.publicTradeConfig(), updatedAt: new Date().toISOString() });
       return;
     }
     if (u.pathname === "/api/trade/test-order" && req.method === "POST") {
-      const ex = requireTradeExecutor();
+      if (!tradeExecutor) {
+        sendJson(res, 503, { ok: false, available: false, error: TRADE_MODULE_UNAVAILABLE });
+        return;
+      }
+      const ex = tradeExecutor;
       const body = await readBody(req);
       const result = await ex.createSignedOrderOrPost(body);
       sendJson(res, 200, { ok: true, result, updatedAt: new Date().toISOString() });
