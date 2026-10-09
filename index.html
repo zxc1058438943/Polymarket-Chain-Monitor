@@ -1,0 +1,1789 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Polymarket Follow Radar</title>
+<style>
+/* ── Variables ─────────────────────────────────────────── */
+:root {
+  --bg:#070b10; --bg2:#0b0f18; --card:#111620; --card2:#161d2b;
+  --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.13);
+  --text:#e8eeff; --muted:#8a94aa; --muted2:#56637a;
+  --blue:#5b7fff; --green:#34d399; --red:#f87171;
+  --amber:#f59e0b; --purple:#a78bfa; --cyan:#22d3ee;
+  --glow-green:0 0 8px rgba(52,211,153,.5);
+  --glow-red:0 0 8px rgba(248,113,113,.5);
+  --glow-blue:0 0 10px rgba(91,127,255,.4);
+  --mono:'JetBrains Mono',Consolas,monospace;
+  --sans:Inter,'Microsoft YaHei',system-ui,sans-serif;
+  --nav-w:72px; --topbar-h:52px; --drawer-w:400px;
+}
+/* ── Reset ─────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:13px/1.5 var(--sans);overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:#9bb0ff;text-decoration:none}a:hover{text-decoration:underline}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px}
+
+/* ── App shell ─────────────────────────────────────────── */
+.app {
+  display:grid;
+  grid-template-rows:var(--topbar-h) 1fr;
+  grid-template-columns:var(--nav-w) 1fr;
+  height:100vh;
+  overflow:hidden;
+  transition:grid-template-columns .25s ease;
+}
+.app.drawer-active { grid-template-columns:var(--nav-w) 1fr var(--drawer-w); }
+
+/* ── Topbar ─────────────────────────────────────────────── */
+.topbar {
+  grid-column:1/-1;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px 0 0;
+  background:#050810;
+  border-bottom:1px solid var(--line);
+  gap:12px;
+  z-index:100;
+}
+.tb-brand {
+  display:flex;align-items:center;gap:10px;
+  width:var(--nav-w);min-width:var(--nav-w);
+  justify-content:center;
+  border-right:1px solid var(--line);height:100%;
+  padding:0 12px;
+}
+.logo {
+  width:32px;height:32px;border-radius:10px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--blue),var(--purple));
+  display:grid;place-items:center;font-size:16px;
+  box-shadow:var(--glow-blue);
+}
+.tb-status { display:flex;align-items:center;gap:8px; }
+.pill {
+  display:inline-flex;align-items:center;gap:5px;
+  border:1px solid var(--line2);background:var(--card);
+  padding:4px 9px;border-radius:999px;
+  color:var(--muted);font:12px var(--mono);white-space:nowrap;
+}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--muted2)}
+.tb-metrics { display:flex;gap:2px;flex:1;overflow:hidden;padding:0 8px; }
+.tb-m {
+  display:flex;align-items:center;gap:6px;
+  padding:4px 12px;border-radius:8px;
+  background:var(--card);border:1px solid var(--line);
+  white-space:nowrap;
+}
+.tb-m-val { font:700 18px var(--mono);line-height:1; }
+.tb-m-label { font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.05em; }
+.tb-m.buy .tb-m-val { color:var(--green); }
+.tb-m.exit .tb-m-val { color:var(--amber); }
+.tb-m.sel .tb-m-val { color:var(--blue); }
+.tb-right { display:flex;align-items:center;gap:8px;flex-shrink:0; }
+.kill-badge {
+  padding:4px 10px;border-radius:6px;font:600 11px var(--mono);
+  border:1px solid var(--line2);white-space:nowrap;
+}
+.kill-badge.kill-ok { color:var(--green);border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.08); }
+.kill-badge.kill-active { color:var(--red);border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.12);animation:pulse 1.4s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+/* ── Side Nav ───────────────────────────────────────────── */
+.sidenav {
+  grid-row:2;
+  display:flex;flex-direction:column;align-items:center;
+  padding:12px 0;gap:4px;
+  background:#050810;
+  border-right:1px solid var(--line);
+  overflow:hidden;
+}
+.nav-btn {
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  width:56px;height:52px;gap:3px;
+  border:1px solid transparent;border-radius:12px;
+  background:transparent;cursor:pointer;
+  color:var(--muted2);transition:all .15s;
+}
+.nav-btn:hover { background:var(--card);color:var(--muted); }
+.nav-btn.nav-active {
+  background:rgba(91,127,255,.14);color:var(--blue);
+  border-color:rgba(91,127,255,.25);
+}
+.nav-icon { font-size:16px;line-height:1; }
+.nav-label { font-size:9px;text-transform:uppercase;letter-spacing:.06em;font-weight:700; }
+.nav-divider { width:36px;height:1px;background:var(--line);margin:4px 0; }
+
+/* ── Workspace ──────────────────────────────────────────── */
+.workspace { grid-row:2;overflow:hidden;display:flex;flex-direction:column; }
+.tab-panel { display:none;flex:1;overflow:hidden;height:100%; }
+.tab-panel.tab-active { display:flex;flex-direction:column; }
+
+/* ── Drawer ─────────────────────────────────────────────── */
+.drawer {
+  grid-row:2;
+  background:var(--bg2);
+  border-left:1px solid var(--line);
+  display:none;flex-direction:column;
+  overflow:hidden;
+}
+.app.drawer-active .drawer { display:flex; }
+.drawer-hd {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border-bottom:1px solid var(--line);
+  background:#070b10;flex-shrink:0;
+}
+.drawer-body { flex:1;overflow:auto;padding:14px; }
+
+/* ── Signals Tab ────────────────────────────────────────── */
+.signal-view { display:flex;flex-direction:column;height:100%; }
+.signal-header {
+  flex-shrink:0;
+  background:#070b10;
+  border-bottom:1px solid var(--line);
+}
+.wallet-tabs-row {
+  display:flex;gap:6px;overflow-x:auto;
+  padding:10px 14px 0;padding-bottom:8px;
+}
+.wallet-tabs-row::-webkit-scrollbar{height:3px}
+.filter-row {
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:8px 14px 10px;
+}
+.filter-group { display:flex;gap:4px; }
+.search-input {
+  background:var(--bg2);border:1px solid var(--line2);
+  border-radius:8px;color:var(--text);padding:6px 10px;
+  outline:none;width:200px;flex-shrink:0;
+}
+.search-input:focus{border-color:rgba(91,127,255,.55)}
+.signalList { flex:1;overflow:auto; }
+.empty {
+  padding:40px 20px;color:var(--muted2);
+  text-align:center;font-size:13px;
+}
+
+/* Signal Cards */
+.signal {
+  display:grid;
+  grid-template-columns:32px 1fr auto;
+  gap:10px;
+  padding:11px 14px;
+  border-bottom:1px solid var(--line);
+  cursor:pointer;
+  border-left:3px solid transparent;
+  transition:background .1s,border-color .1s;
+}
+.signal:hover,.signal.selected { background:rgba(255,255,255,.03); }
+.signal.selected { border-left-color:var(--blue); }
+.icon {
+  width:32px;height:32px;border-radius:9px;
+  display:grid;place-items:center;font-size:14px;
+  background:rgba(91,127,255,.12);flex-shrink:0;
+  align-self:start;margin-top:1px;
+}
+.signalTitle { font-weight:700;font-size:13px; }
+.signalDesc { font:12px var(--mono);color:var(--muted);margin-top:2px;word-break:break-word; }
+.signalTime { font:11px var(--mono);color:var(--muted2);white-space:nowrap;align-self:start; }
+
+/* Grouped view */
+.walletBoard { display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;padding:14px; }
+.walletPanel { border:1px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden; }
+.walletPanelHead {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 12px;border-bottom:1px solid var(--line);
+  background:rgba(255,255,255,.02);
+}
+.miniSignal { padding:9px 12px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .1s; }
+.miniSignal:hover{background:rgba(255,255,255,.03)}
+.miniSignal:last-child{border-bottom:0}
+
+/* ── Two-col layout (Wallets, Portfolio) ────────────────── */
+.two-col-layout {
+  display:grid;grid-template-columns:320px 1fr;
+  gap:0;height:100%;overflow:hidden;
+}
+.two-col-left,.two-col-right { overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px; }
+.two-col-left { border-right:1px solid var(--line); }
+
+/* ── Panel sections ─────────────────────────────────────── */
+.panel-section {
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:14px;
+  overflow:hidden;
+}
+.section-hd {
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:10px 14px;
+  border-bottom:1px solid var(--line);
+  background:rgba(255,255,255,.02);
+}
+.section-title {
+  font-size:11px;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--muted);font-weight:800;
+}
+.section-body { padding:14px; }
+.section-body > * + * { margin-top:8px; }
+
+/* ── Trade Tab ──────────────────────────────────────────── */
+.trade-layout { display:flex;flex-direction:column;gap:12px;padding:14px;overflow-y:auto;height:100%; }
+.trade-top-row { display:grid;grid-template-columns:300px 1fr;gap:12px; }
+.kill-inner {
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;flex-wrap:wrap;
+}
+.kill-section .section-body { background:rgba(248,113,113,.04); }
+.status-box {
+  border:1px solid var(--line);background:var(--bg2);
+  border-radius:8px;padding:10px;
+  font:12px/1.5 var(--mono);color:var(--muted);
+  white-space:pre-wrap;word-break:break-word;
+  min-height:60px;
+}
+.warn { color:var(--amber) !important; }
+
+/* ── Common components ──────────────────────────────────── */
+.hint { font-size:12px;color:var(--muted);line-height:1.5; }
+.walletMeta,.chips { display:flex;gap:5px;flex-wrap:wrap;margin-top:7px; }
+
+.tag {
+  font:700 10px var(--mono);padding:2px 6px;
+  border-radius:5px;border:1px solid var(--line2);color:var(--muted);
+  white-space:nowrap;
+}
+.tag.green{color:var(--green);background:rgba(52,211,153,.08);border-color:rgba(52,211,153,.22)}
+.tag.red{color:var(--red);background:rgba(248,113,113,.08);border-color:rgba(248,113,113,.22)}
+.tag.blue{color:#9bb0ff;background:rgba(91,127,255,.10);border-color:rgba(91,127,255,.22)}
+.tag.amber{color:var(--amber);background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.22)}
+.tag.purple{color:var(--purple);background:rgba(167,139,250,.08);border-color:rgba(167,139,250,.22)}
+.tag.cyan{color:var(--cyan);background:rgba(34,211,238,.08);border-color:rgba(34,211,238,.22)}
+
+/* Buttons */
+.btn {
+  border:1px solid var(--line2);background:var(--card2);
+  color:var(--text);border-radius:9px;padding:7px 11px;
+  cursor:pointer;white-space:nowrap;transition:border-color .12s,background .12s;
+}
+.btn:hover{border-color:rgba(91,127,255,.4)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.btn-sm{padding:4px 8px;border-radius:7px;font-size:12px}
+.btn.btn-primary,.btn.active{background:rgba(91,127,255,.15);color:#9bb0ff;border-color:rgba(91,127,255,.32)}
+.btn.btn-danger{background:rgba(248,113,113,.10);color:var(--red);border-color:rgba(248,113,113,.32)}
+
+/* Inputs */
+input,select,textarea {
+  width:100%;background:var(--bg2);border:1px solid var(--line2);
+  border-radius:8px;color:var(--text);padding:8px 10px;outline:none;
+  transition:border-color .15s;
+}
+input:focus,select:focus,textarea:focus{border-color:rgba(91,127,255,.6)}
+textarea{min-height:72px;font:12px/1.4 var(--mono);resize:vertical}
+
+/* Grid helpers */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+
+/* Wallet cards */
+.wallet {
+  padding:11px;border:1px solid var(--line);
+  background:var(--card);border-radius:12px;margin-bottom:8px;
+  cursor:pointer;transition:border-color .15s;
+}
+.wallet:last-child{margin-bottom:0}
+.wallet.active{border-color:rgba(91,127,255,.55);background:rgba(91,127,255,.06)}
+.wallet:hover:not(.active){border-color:rgba(255,255,255,.15)}
+.walletTop{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.walletName{font-weight:800;font-size:13px}
+.walletAddr{font:11px var(--mono);color:var(--muted);margin-top:3px;word-break:break-all}
+
+/* Data rows */
+.row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.k{color:var(--muted);font-size:12px}
+.v{font:12px var(--mono);text-align:right;word-break:break-word}
+
+/* Position/Activity/Rank cards */
+.pos,.activity,.card {
+  padding:12px;border:1px solid var(--line);
+  background:var(--card);border-radius:11px;margin-bottom:8px;
+}
+.pos:last-child,.activity:last-child,.card:last-child{margin-bottom:0}
+.posTitle,.activityTitle{font-weight:700;font-size:13px;word-break:break-word}
+.posLine,.activityLine{
+  display:flex;justify-content:space-between;gap:10px;
+  margin-top:6px;color:#b4bdd4;font:12px var(--mono);
+}
+.activity{cursor:pointer;transition:border-color .15s}
+.activity:hover{border-color:rgba(91,127,255,.4)}
+.rankItem{padding:11px;border-bottom:1px solid var(--line);cursor:pointer}
+.rankItem:hover{background:rgba(255,255,255,.02)}
+.rankTop{display:flex;justify-content:space-between;align-items:flex-start}
+.score{font:800 22px var(--mono);color:var(--green)}
+
+/* Kill switch panel */
+.kill-switch-panel{margin-bottom:10px}
+.kill-switch-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.kill-switch-status{font-size:14px;font-weight:600}
+
+/* Toast */
+.toast {
+  position:fixed;right:20px;bottom:20px;
+  background:var(--card2);border:1px solid var(--line2);
+  padding:9px 14px;border-radius:10px;
+  font:12px var(--mono);
+  opacity:0;transform:translateY(6px);
+  transition:.2s;pointer-events:none;z-index:9999;
+}
+.toast.show{opacity:1;transform:translateY(0)}
+
+/* Tabs row (for activity etc.) */
+.tabs{display:flex;gap:5px;margin-bottom:10px}
+.warnText{color:var(--amber);font-size:12px;margin-top:6px}
+.statusBox{
+  border:1px solid var(--line);background:var(--bg2);border-radius:8px;
+  padding:9px;margin-top:8px;font:12px/1.4 var(--mono);
+  color:#b6c0d4;white-space:pre-wrap;word-break:break-word;
+}
+
+/* Responsive */
+@media(max-width:1100px){.two-col-layout{grid-template-columns:1fr}}
+@media(max-width:900px){.trade-top-row{grid-template-columns:1fr}}
+@media(max-width:700px){.tb-metrics{display:none}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- ══ TopBar ══════════════════════════════════════════════════ -->
+  <header class="topbar">
+    <div class="tb-brand">
+      <div class="logo">◈</div>
+    </div>
+    <div class="tb-status">
+      <span class="pill">
+        <span class="dot" id="connDot"></span>
+        <span id="connText">连接中</span>
+      </span>
+    </div>
+    <div class="tb-metrics">
+      <div class="tb-m">
+        <span class="tb-m-val" id="mSignals">0</span>
+        <span class="tb-m-label">信号</span>
+      </div>
+      <div class="tb-m buy">
+        <span class="tb-m-val" id="mActiveBuy">0</span>
+        <span class="tb-m-label">买入</span>
+      </div>
+      <div class="tb-m exit">
+        <span class="tb-m-val" id="mExit">0</span>
+        <span class="tb-m-label">退出</span>
+      </div>
+      <div class="tb-m sel">
+        <span class="tb-m-val" id="mSelectedSignals">0</span>
+        <span class="tb-m-label">当前钱包</span>
+      </div>
+    </div>
+    <div class="tb-right">
+      <span class="pill" id="qqStatus">QQ Bot -</span>
+      <span class="kill-badge kill-ok" id="topKillIndicator">◉ 运行中</span>
+      <button class="btn btn-sm btn-primary" onclick="App.refreshAll()">↻ 刷新</button>
+    </div>
+  </header>
+
+  <!-- ══ Side Nav ════════════════════════════════════════════════ -->
+  <nav class="sidenav">
+    <button class="nav-btn nav-active" data-nav="signals" onclick="Nav.switch('signals')" title="信号流">
+      <span class="nav-icon">◈</span>
+      <span class="nav-label">信号</span>
+    </button>
+    <button class="nav-btn" data-nav="wallets" onclick="Nav.switch('wallets')" title="钱包管理">
+      <span class="nav-icon">◉</span>
+      <span class="nav-label">钱包</span>
+    </button>
+    <button class="nav-btn" data-nav="portfolio" onclick="Nav.switch('portfolio')" title="我的持仓">
+      <span class="nav-icon">◧</span>
+      <span class="nav-label">持仓</span>
+    </button>
+    <div class="nav-divider"></div>
+    <button class="nav-btn" data-nav="trade" onclick="Nav.switch('trade')" title="交易控制">
+      <span class="nav-icon">⚡</span>
+      <span class="nav-label">交易</span>
+    </button>
+    <button class="nav-btn" data-nav="discover" onclick="Nav.switch('discover')" title="发现钱包">
+      <span class="nav-icon">⊕</span>
+      <span class="nav-label">发现</span>
+    </button>
+  </nav>
+
+  <!-- ══ Workspace ═══════════════════════════════════════════════ -->
+  <div class="workspace">
+
+    <!-- ─ Tab: SIGNALS ─────────────────────────────────────────── -->
+    <div class="tab-panel tab-active" data-tab="signals">
+      <div class="signal-view">
+        <div class="signal-header">
+          <div class="wallet-tabs-row" id="walletTabs"></div>
+          <div class="filter-row">
+            <div class="filter-group">
+              <button class="btn btn-sm" id="scopeSelected" onclick="SignalManager.setScope('selected')">当前钱包</button>
+              <button class="btn btn-sm" id="scopeAll" onclick="SignalManager.setScope('all')">全部</button>
+              <button class="btn btn-sm" id="scopeGroup" onclick="SignalManager.setScope('group')">分组</button>
+            </div>
+            <div class="filter-group">
+              <button class="btn btn-sm" id="filterAll" onclick="SignalManager.setFilter('all')">全部</button>
+              <button class="btn btn-sm" id="filterBuy" onclick="SignalManager.setFilter('buy')">买入</button>
+              <button class="btn btn-sm" id="filterExit" onclick="SignalManager.setFilter('exit')">退出</button>
+              <button class="btn btn-sm" id="filterQuality" onclick="SignalManager.setFilter('quality')">可跟</button>
+              <button class="btn btn-sm btn-danger" onclick="SignalManager.clearAll()">清空</button>
+            </div>
+            <input id="signalSearch" class="search-input" placeholder="搜索市场 / 钱包…" oninput="SignalManager.render()">
+          </div>
+        </div>
+        <div class="signalList" id="signalListContainer">
+          <div id="signalList"><div class="empty">等待链上信号…</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─ Tab: WALLETS ─────────────────────────────────────────── -->
+    <div class="tab-panel" data-tab="wallets">
+      <div class="two-col-layout">
+        <div class="two-col-left">
+          <!-- Add wallet -->
+          <div class="panel-section">
+            <div class="section-hd">
+              <span class="section-title">添加监控钱包</span>
+            </div>
+            <div class="section-body">
+              <input id="walletName" placeholder="备注名，如 RN1">
+              <input id="walletAddress" placeholder="0x 钱包地址" style="margin-top:8px">
+              <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="WalletManager.addWallet()">添加 / 更新</button>
+            </div>
+          </div>
+          <!-- Wallet list -->
+          <div class="panel-section" style="flex:1">
+            <div class="section-hd">
+              <span class="section-title">监控钱包列表</span>
+              <button class="btn btn-sm" onclick="WalletManager.load()">刷新</button>
+            </div>
+            <div class="section-body">
+              <div id="walletList"><div class="empty">暂无钱包</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="two-col-right">
+          <!-- Selected wallet -->
+          <div class="panel-section">
+            <div class="section-hd">
+              <span class="section-title">当前钱包 · 跟单设置</span>
+              <button class="btn btn-sm" onclick="WalletManager.loadSelectedData()">刷新</button>
+            </div>
+            <div class="section-body">
+              <div id="selectedWalletBox"><div class="hint">请先选择一个钱包</div></div>
+            </div>
+          </div>
+          <!-- Wallet scoring -->
+          <div class="panel-section">
+            <div class="section-hd">
+              <span class="section-title">钱包质量评分</span>
+              <button class="btn btn-sm btn-primary" onclick="WalletAnalyzer.analyzeAll()">分析全部</button>
+            </div>
+            <div class="section-body">
+              <div id="rankList"><div class="empty">点击"分析全部"生成排名</div></div>
+            </div>
+          </div>
+          <!-- Signal filter settings -->
+          <div class="panel-section">
+            <div class="section-hd">
+              <span class="section-title">信号过滤 / 可跟性设置</span>
+              <button class="btn btn-sm" onclick="Settings.load()">刷新</button>
+            </div>
+            <div class="section-body">
+              <div id="settingsBox" class="hint">加载中…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─ Tab: PORTFOLIO ───────────────────────────────────────── -->
+    <div class="tab-panel" data-tab="portfolio">
+      <div class="two-col-layout">
+        <div class="two-col-left">
+          <!-- My account -->
+          <div class="panel-section">
+            <div class="section-hd">
+              <span class="section-title">我的账户资金</span>
+              <button class="btn btn-sm btn-primary" onclick="AccountPanel.load(true)">刷新</button>
+            </div>
+            <div class="section-body">
+              <div id="accountStatusBox" class="hint">加载账户资金…</div>
+            </div>
+          </div>
+          <!-- Watched wallet positions -->
+          <div class="panel-section" style="flex:1">
+            <div class="section-hd">
+              <span class="section-title">持仓 / 结算状态</span>
+              <button class="btn btn-sm" onclick="PositionPanel.load()">刷新</button>
+            </div>
+            <div class="section-body">
+              <div id="posSummary" class="hint"></div>
+              <div id="positions" style="margin-top:10px"></div>
+            </div>
+          </div>
+        </div>
+        <div class="two-col-right">
+          <!-- Tracked projects -->
+          <div class="panel-section">
+            <div class="section-hd">
+              <span class="section-title">已选择项目 · 退出监控</span>
+              <button class="btn btn-sm btn-primary" onclick="TrackedProjects.load()">刷新</button>
+            </div>
+            <div class="section-body">
+              <div id="trackedProjectsBox"><div class="empty">还没有选择项目</div></div>
+              <div class="hint" style="margin-top:8px">只推送这些项目的减仓 / 已关闭提醒；主动买入仍正常显示</div>
+            </div>
+          </div>
+          <!-- Activity -->
+          <div class="panel-section" style="flex:1">
+            <div class="section-hd">
+              <span class="section-title">历史动作 · Activity</span>
+              <button class="btn btn-sm btn-primary" onclick="ActivityPanel.load()">刷新</button>
+            </div>
+            <div class="section-body">
+              <div class="filter-group" style="margin-bottom:8px">
+                <button class="btn btn-sm" id="actAll" onclick="ActivityPanel.setFilter('all')">全部</button>
+                <button class="btn btn-sm" id="actBuy" onclick="ActivityPanel.setFilter('buy')">买入</button>
+                <button class="btn btn-sm" id="actSell" onclick="ActivityPanel.setFilter('sell')">卖出</button>
+                <button class="btn btn-sm" id="actRedeem" onclick="ActivityPanel.setFilter('redeem')">Redeem</button>
+              </div>
+              <div id="activitySummary" class="hint"></div>
+              <div id="activityList" style="margin-top:10px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─ Tab: TRADE ───────────────────────────────────────────── -->
+    <div class="tab-panel" data-tab="trade">
+      <div class="trade-layout">
+
+        <!-- Kill switch + trade status -->
+        <div class="trade-top-row">
+          <div class="panel-section kill-section" id="killSwitchPanel">
+            <div class="section-hd">
+              <span class="section-title">紧急停止开关</span>
+            </div>
+            <div class="section-body">
+              <div class="kill-inner">
+                <div>
+                  <div id="killSwitchStatus" class="kill-switch-status">检查中…</div>
+                </div>
+                <button id="killSwitchBtn" class="btn btn-danger" onclick="KillSwitch.toggle()" style="font-weight:700">加载中…</button>
+              </div>
+              <div id="tradeQuotaDisplay" class="hint" style="margin-top:8px"></div>
+            </div>
+          </div>
+          <div class="panel-section">
+            <div class="section-hd">
+              <span class="section-title">交易模块状态</span>
+              <button class="btn btn-sm" onclick="TradePanel.loadStatus()">刷新</button>
+            </div>
+            <div class="section-body">
+              <div id="tradeStatusBox" class="hint">加载中…</div>
+              <div class="grid2" style="margin-top:10px">
+                <button class="btn btn-sm btn-primary" onclick="TradePanel.connect(false)">连接检查</button>
+                <button class="btn btn-sm" onclick="TradePanel.connect(true)">派生 / 保存凭证</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Order form -->
+        <div class="panel-section">
+          <div class="section-hd">
+            <span class="section-title">下单测试</span>
+          </div>
+          <div class="section-body">
+            <div class="grid2">
+              <input id="tradeTokenId" placeholder="tokenId">
+              <select id="tradeSide">
+                <option value="BUY">BUY 买入</option>
+                <option value="SELL">SELL 卖出</option>
+              </select>
+            </div>
+            <div class="grid3" style="margin-top:8px">
+              <input id="tradePrice" placeholder="限价 如 0.35">
+              <input id="tradeAmountUsd" placeholder="金额 USD">
+              <select id="tradeOrderType">
+                <option value="FAK">FAK</option>
+                <option value="FOK">FOK</option>
+                <option value="GTC">GTC</option>
+              </select>
+            </div>
+            <div class="grid2" style="margin-top:8px">
+              <select id="tradeMode">
+                <option value="paper">paper 模拟</option>
+                <option value="sign">sign 只签名</option>
+                <option value="live">live 真下单</option>
+              </select>
+              <input id="tradeConfirm" placeholder="live 模式输入 I_UNDERSTAND">
+            </div>
+            <div class="grid2" style="margin-top:8px">
+              <button class="btn" onclick="TradePanel.fillFromSignal()">用当前信号填入</button>
+              <button class="btn btn-primary" onclick="TradePanel.runTest()">执行测试</button>
+            </div>
+            <div class="hint warn" style="margin-top:8px">paper / sign 不会真实成交；live 需要 .env 安全开关 + 确认词</div>
+            <div id="tradeResultBox" class="status-box" style="margin-top:8px">等待测试…</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ─ Tab: DISCOVER ────────────────────────────────────────── -->
+    <div class="tab-panel" data-tab="discover">
+      <div class="two-col-layout" style="grid-template-columns:320px 1fr">
+        <div class="two-col-left">
+          <div class="panel-section">
+            <div class="section-hd">
+              <span class="section-title">发现优质钱包</span>
+              <button class="btn btn-sm btn-primary" onclick="Discovery.search()">开始发现</button>
+            </div>
+            <div class="section-body">
+              <div class="grid2">
+                <select id="discoverCategory">
+                  <option value="OVERALL">全部</option>
+                  <option value="WEATHER">天气</option>
+                  <option value="SPORTS">体育</option>
+                  <option value="CRYPTO">加密</option>
+                  <option value="POLITICS">政治</option>
+                  <option value="ECONOMICS">经济</option>
+                  <option value="TECH">科技</option>
+                  <option value="FINANCE">金融</option>
+                  <option value="CULTURE">文化</option>
+                  <option value="MENTIONS">提及</option>
+                </select>
+                <select id="discoverPeriod">
+                  <option value="DAY">日榜</option>
+                  <option value="WEEK">周榜</option>
+                  <option value="MONTH" selected>月榜</option>
+                  <option value="ALL">总榜</option>
+                </select>
+              </div>
+              <div class="grid2" style="margin-top:8px">
+                <select id="discoverOrder">
+                  <option value="PNL">按盈利</option>
+                  <option value="VOL">按成交量</option>
+                </select>
+                <input id="discoverLimit" value="25" placeholder="抓取数量">
+              </div>
+              <div class="grid2" style="margin-top:8px">
+                <input id="discoverMinScore" value="65" placeholder="最低评分">
+                <input id="discoverMinPnl" value="0" placeholder="最低 PNL">
+              </div>
+              <button class="btn" style="width:100%;margin-top:10px" onclick="Discovery.addQualified()">添加通过筛选的钱包</button>
+            </div>
+          </div>
+        </div>
+        <div class="two-col-right">
+          <div class="panel-section" style="flex:1">
+            <div class="section-hd">
+              <span class="section-title">候选钱包池</span>
+            </div>
+            <div class="section-body">
+              <div id="discoverList"><div class="empty">点击"开始发现"生成候选池</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /workspace -->
+
+  <!-- ══ Signal Detail Drawer ════════════════════════════════════ -->
+  <aside class="drawer" id="signalDrawer">
+    <div class="drawer-hd">
+      <span class="section-title">事件详情</span>
+      <button class="btn btn-sm" onclick="SignalDetail.close()">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div id="detail"><div class="empty">点击信号查看详情</div></div>
+    </div>
+  </aside>
+
+</div><!-- /app -->
+<div id="toast" class="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   STATE MANAGEMENT
+   ═══════════════════════════════════════════════════════════════════ */
+class Store {
+  #state = {};
+  #listeners = new Set();
+  get(key) { return this.#state[key]; }
+  set(key, value) {
+    const old = this.#state[key];
+    if (old !== value) { this.#state[key] = value; this.#notify(key, value, old); }
+  }
+  subscribe(key, callback) { this.#listeners.add(callback); return () => this.#listeners.delete(callback); }
+  #notify(key, value, old) { this.#listeners.forEach(cb => cb(key, value, old)); }
+}
+const State = new Store();
+
+/* ═══════════════════════════════════════════════════════════════════
+   UTILITIES
+   ═══════════════════════════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+const short = a => a ? a.slice(0,6)+'...'+a.slice(-4) : '';
+const escapeHtml = s => String(s??'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const escapeAttr = s => escapeHtml(s).replace(/'/g,'&#39;');
+const fmtCents = v => (Number(v||0)*100).toFixed(1)+'¢';
+const row = (k,v) => `<div class="row"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+async function api(path, opts = {}) {
+  const timeoutMs = opts.timeoutMs || 30000;
+  delete opts.timeoutMs;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const headers = {'content-type':'application/json', ...(opts.headers||{})};
+  const uiSecret = new URLSearchParams(location.search).get('token');
+  if (uiSecret) headers['x-ui-secret'] = uiSecret;
+  try {
+    delete opts.headers;
+    const r = await fetch(path, {headers, signal: controller.signal, ...opts});
+    const t = await r.text();
+    if (!r.ok) throw new Error(t || r.status);
+    return t ? JSON.parse(t) : {};
+  } finally { clearTimeout(timer); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SIGNAL HELPERS
+   ═══════════════════════════════════════════════════════════════════ */
+const isActiveBuy = s => s?.type==='order' && s?.role==='taker' && s?.side==='BUY';
+const isExit = s => ['activity_exit','position_exit','position_closed'].includes(String(s?.type||'')) || s?.positionChangeGroup==='exit' || ['减仓','平仓','卖出','赎回'].includes(String(s?.positionChange||'')) || s?.side==='SELL' || s?.side==='REDEEM';
+const isQuality = s => s?.followPass === true || s?.followVerdict==='可跟' || s?.followVerdict==='退出提醒';
+const signalIcon = s => {
+  if (isActiveBuy(s)) return '🟢';
+  if (s?.type==='exit_batch') return '🧺';
+  if (isExit(s)) return s?.type==='activity_exit' ? '📜' : s?.type==='position_closed' ? '✅' : '🟠';
+  if (s?.side==='SELL') return '🔴';
+  if (s?.type==='erc20') return '$';
+  return '◇';
+};
+const signalTag = s => {
+  const tracked = isTrackedSignal(s) ? '<span class="tag green">已选择项目</span>' : '';
+  if (isActiveBuy(s)) return '<span class="tag green">主动买入</span>' + tracked;
+  if (s?.type==='exit_batch') return '<span class="tag amber">退出汇总</span>' + tracked;
+  if (s?.type==='activity_exit') return '<span class="tag amber">历史退出</span>' + tracked;
+  if (s?.type==='position_closed') return '<span class="tag green">项目Closed</span>' + tracked;
+  if (s?.type==='position_exit') return '<span class="tag amber">持仓减少</span>' + tracked;
+  if (isExit(s)) return '<span class="tag amber">退出/卖出</span>' + tracked;
+  if (s?.side==='SELL') return '<span class="tag red">卖出</span>' + tracked;
+  return '<span class="tag blue">信号</span>' + tracked;
+};
+const normText = v => String(v||'').trim().toLowerCase().replace(/\s+/g,' ');
+
+/* ═══════════════════════════════════════════════════════════════════
+   TRACKED PROJECTS
+   ═══════════════════════════════════════════════════════════════════ */
+function isTrackedSignal(s) { return !!trackedForSignal(s); }
+function trackedForSignal(s) {
+  if (!s || !s.wallet) return null;
+  const tokenId = String(s.tokenId||'');
+  const conditionId = String(s.conditionId||'').toLowerCase();
+  const title = normText(s.marketQuestion||s.title||'');
+  const outcome = normText(s.outcome||'');
+  const trackedProjects = State.get('trackedProjects') || [];
+  return trackedProjects.find(p => p.enabled !== false && p.wallet === s.wallet && (
+    (p.tokenId && tokenId && String(p.tokenId) === tokenId) ||
+    (p.conditionId && conditionId && String(p.conditionId).toLowerCase() === conditionId && (!p.outcome || !outcome || normText(p.outcome) === outcome)) ||
+    (p.marketQuestion && title && normText(p.marketQuestion) === title && (!p.outcome || !outcome || normText(p.outcome) === outcome))
+  )) || null;
+}
+
+const TrackedProjects = {
+  async load() {
+    try {
+      const data = await api('/api/tracked-projects');
+      State.set('trackedProjects', data.projects || []);
+      this.render();
+      SignalManager.render();
+      Settings.load();
+    } catch (e) {
+      $('trackedProjectsBox').innerHTML = '<div class="empty">选择项目加载失败 ' + escapeHtml(e.message) + '</div>';
+    }
+  },
+  render() {
+    const box = $('trackedProjectsBox');
+    if (!box) return;
+    let list = State.get('trackedProjects') || [];
+    const selectedWallet = State.get('selectedWallet');
+    if (selectedWallet) list = list.filter(p => p.wallet === selectedWallet);
+    if (!list.length) { box.innerHTML = '<div class="empty">当前钱包还没有选择项目</div>'; return; }
+    const wallets = State.get('wallets') || [];
+    box.innerHTML = list.map(p => {
+      const walletName = p.walletName || wallets.find(w => w.address === p.wallet)?.name || short(p.wallet);
+      return `<div class="card">
+        <div class="posTitle">${p.marketUrl ? `<a href="${escapeAttr(p.marketUrl)}" target="_blank">${escapeHtml(p.marketQuestion||'未知市场')}</a>` : escapeHtml(p.marketQuestion||'未知市场')}</div>
+        <div class="walletMeta">
+          <span class="tag green">已选择</span>
+          <span class="tag blue">${escapeHtml(p.outcome||'-')}</span>
+          ${p.tokenId ? `<span class="tag purple">token ${escapeHtml(String(p.tokenId).slice(0,8))}</span>` : ''}
+        </div>
+        <div class="walletAddr">${escapeHtml(walletName)} · ${short(p.wallet)}</div>
+        <button class="btn btn-sm btn-danger" style="margin-top:8px" onclick="TrackedProjects.remove('${escapeAttr(p.id)}')">取消选择</button>
+      </div>`;
+    }).join('');
+  },
+  async add(signal) {
+    if (!signal) return toast('请先点一个信号');
+    const payload = {
+      wallet: signal.wallet, tokenId: signal.tokenId || '', conditionId: signal.conditionId || '',
+      marketQuestion: signal.marketQuestion || '', outcome: signal.outcome || '',
+      marketUrl: signal.marketUrl || signal.openUrl || '', source: 'ui_signal',
+      note: `来自信号 ${signal.time || ''}`
+    };
+    try {
+      const data = await api('/api/tracked-projects', {method:'POST', body: JSON.stringify(payload)});
+      State.set('trackedProjects', data.projects || State.get('trackedProjects'));
+      this.render(); SignalManager.render(); SignalDetail.render();
+      toast('已选择此项目，后续只跟踪它的减仓和 Closed');
+    } catch (e) { toast('选择失败: ' + e.message); }
+  },
+  async remove(id) {
+    try {
+      const data = await api('/api/tracked-projects/' + encodeURIComponent(id), {method:'DELETE'});
+      State.set('trackedProjects', data.projects || State.get('trackedProjects'));
+      this.render(); SignalManager.render(); SignalDetail.render();
+      toast('已取消选择项目');
+    } catch (e) { toast('取消失败: ' + e.message); }
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   KILL SWITCH
+   ═══════════════════════════════════════════════════════════════════ */
+const KillSwitch = {
+  active: false,
+  async load() {
+    try {
+      const data = await api('/api/trade/kill-switch', {timeoutMs: 10000});
+      this.active = data.killSwitch || false;
+      this.updateUI();
+    } catch (e) {
+      console.warn('Kill Switch 状态加载失败', e.message);
+      $('killSwitchStatus').textContent = '状态检查失败';
+      $('killSwitchBtn').textContent = '重试';
+      $('killSwitchBtn').onclick = () => this.load();
+    }
+  },
+  renderState(active) { this.active = Boolean(active); this.updateUI(); },
+  updateUI() {
+    const status = $('killSwitchStatus');
+    const btn = $('killSwitchBtn');
+    if (this.active) {
+      status.innerHTML = '<span style="color:var(--red);font-weight:bold">⚠ 已启用 — 所有自动交易已停止</span>';
+      btn.textContent = '恢复交易';
+      btn.className = 'btn btn-primary';
+      btn.onclick = () => this.toggle();
+    } else {
+      status.innerHTML = '<span style="color:var(--green)">◉ 正常运行中</span>';
+      btn.textContent = '紧急停止';
+      btn.className = 'btn btn-danger';
+      btn.onclick = () => this.toggle();
+    }
+  },
+  async toggle() {
+    const btn = $('killSwitchBtn');
+    btn.textContent = '设置中…';
+    btn.disabled = true;
+    try {
+      const newState = !this.active;
+      const data = await api('/api/trade/kill-switch', {method:'POST', body: JSON.stringify({enabled: newState}), timeoutMs: 15000});
+      if (data.ok) {
+        this.active = data.killSwitch || false;
+        this.updateUI();
+        toast(data.warning || (this.active ? '已启用紧急停止' : '已恢复自动交易'));
+        if (this.active) this.playAlert();
+      } else { toast('设置失败: ' + (data.error || '未知错误')); }
+    } catch (e) { toast('Kill Switch 设置失败: ' + e.message); }
+    finally { btn.disabled = false; }
+  },
+  playAlert() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 880; osc.type = 'sine';
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+      osc.start(); osc.stop(ctx.currentTime + 0.5);
+    } catch (e) {}
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   SETTINGS
+   ═══════════════════════════════════════════════════════════════════ */
+const Settings = {
+  async load() {
+    try {
+      const data = await api('/api/settings');
+      State.set('settings', data);
+      const box = $('settingsBox');
+      if (!box) return;
+      const s = data;
+      box.innerHTML = `<div class="walletMeta">
+        <span class="tag ${s.qqPushActiveBuyExitOnly?'green':'amber'}">QQ ${s.qqPushActiveBuyExitOnly?'主动+退出':'质量过滤'}</span>
+        <span class="tag ${s.qqPushHighQualityOnly?'green':'amber'}">质量 ${s.qqPushHighQualityOnly?'ON':'OFF'}</span>
+        <span class="tag blue">评分 ≥ ${s.signalMinWalletScore}</span>
+        <span class="tag cyan">价差 ≤ ${s.signalMaxPriceDiffText}</span>
+        <span class="tag purple">深度 ≥ $${s.signalMinDepthUsd}</span>
+        <span class="tag amber">样本 $${s.signalFollowSampleUsd}</span>
+        <span class="tag ${s.chainBalanceCheck?'green':'amber'}">链上余额 ${s.chainBalanceCheck?'ON':'OFF'}</span>
+        <span class="tag ${s.exitActivityWatchEnabled?'green':'amber'}">Activity退出 ${s.exitActivityWatchEnabled?Math.round(s.exitActivityPollMs/1000)+'s':'OFF'}</span>
+        <span class="tag ${s.exitPositionWatchEnabled?'green':'amber'}">持仓退出 ${s.exitPositionWatchEnabled?Math.round(s.exitPositionPollMs/1000)+'s':'OFF'}</span>
+        <span class="tag amber">持仓阈值 ≥ $${s.exitPositionTrackMinValueUsd||'-'}</span>
+        <span class="tag amber">shares减 ≥ ${s.exitPositionMinShareDelta??'-'}</span>
+        <span class="tag ${s.exitBatchEnabled?'green':'amber'}">退出合并 ${s.exitBatchEnabled?'ON':'OFF'}</span>
+        <span class="tag blue">冷却 ${Math.round((s.exitAlertCooldownMs||0)/60000)}m</span>
+        <span class="tag ${s.trackedExitOnly?'green':'amber'}">退出仅选中 ${s.trackedExitOnly?'ON':'OFF'}</span>
+        <span class="tag blue">已选 ${s.trackedProjectsCount||0}</span>
+        <span class="tag ${s.autoTradeWalletsEnabled?'green':'amber'}">自动跟单 ${s.autoTradeWalletsEnabled||0}个</span>
+        <span class="tag cyan">自动价差 ≤ ${s.autoTradeDefaultMaxPriceDiffText||'-'}</span>
+      </div>`;
+    } catch (e) { if($('settingsBox')) $('settingsBox').textContent = '过滤设置加载失败 ' + e.message; }
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   WALLET MANAGER
+   ═══════════════════════════════════════════════════════════════════ */
+const WalletManager = {
+  async load() {
+    try {
+      const data = await api('/api/wallets');
+      State.set('wallets', data.wallets || []);
+      State.set('selectedWallet', data.selectedWallet || State.get('selectedWallet') || State.get('wallets')[0]?.address || null);
+      $('qqStatus').textContent = data.qqbot ? 'QQ Bot ✓' : 'QQ Bot -';
+      this.render(); this.renderTabs(); Metrics.update(); AutoTrade.load();
+      if (State.get('selectedWallet')) this.loadSelectedData();
+    } catch (e) { console.warn('钱包加载失败', e.message); }
+  },
+  render() {
+    const box = $('walletList');
+    const wallets = State.get('wallets') || [];
+    const selectedWallet = State.get('selectedWallet');
+    const signals = State.get('signals') || [];
+    const autoTradeWallets = State.get('autoTradeWallets') || [];
+    if (!wallets.length) { box.innerHTML = '<div class="empty">还没有钱包</div>'; return; }
+    box.innerHTML = wallets.map(w => {
+      const ac = autoTradeWallets.find(x => x.wallet === w.address) || {};
+      const signalCount = signals.filter(s => s.wallet === w.address).length;
+      return `<div class="wallet ${w.address === selectedWallet ? 'active' : ''}" onclick="WalletManager.select('${w.address}')">
+        <div class="walletTop">
+          <div>
+            <div class="walletName">${escapeHtml(w.name)}</div>
+            <div class="walletAddr">${w.address}</div>
+          </div>
+          <div style="display:flex;gap:5px">
+            <button class="btn btn-sm" onclick="event.stopPropagation();WalletManager.toggle('${w.address}',${!w.enabled})">${w.enabled?'停用':'启用'}</button>
+            <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();WalletManager.delete('${w.address}')">删</button>
+          </div>
+        </div>
+        <div class="walletMeta">
+          <span class="tag ${w.enabled?'green':'red'}">${w.enabled?'ON':'OFF'}</span>
+          <span class="tag blue">${short(w.address)}</span>
+          <span class="tag cyan">信号 ${signalCount}</span>
+          <span class="tag ${ac.enabled?'green':'amber'}">AUTO ${ac.enabled ? (ac.mode||'global').toUpperCase() : 'OFF'}</span>
+          ${ac.enabled ? `<span class="tag purple">$${ac.amountUsd}</span><span class="tag amber">≤${fmtCents(ac.maxPriceDiff)}</span>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  },
+  renderTabs() {
+    const box = $('walletTabs');
+    const wallets = State.get('wallets') || [];
+    const selectedWallet = State.get('selectedWallet');
+    const signals = State.get('signals') || [];
+    const scope = State.get('scope') || 'selected';
+    box.innerHTML = '<button class="btn btn-sm walletTab ' + (scope==='all'?'active':'') + '" onclick="SignalManager.setScope(\'all\')">全部钱包</button>' +
+      wallets.map(w => {
+        const count = signals.filter(s => s.wallet === w.address).length;
+        return `<button class="btn btn-sm walletTab ${w.address === selectedWallet && scope === 'selected' ? 'active' : ''}" onclick="WalletManager.select('${w.address}');SignalManager.setScope('selected')">${escapeHtml(w.name)} <span class="tag blue">${count}</span></button>`;
+      }).join('');
+  },
+  async addWallet() {
+    const address = $('walletAddress').value.trim();
+    const name = $('walletName').value.trim();
+    if (!address) return toast('请输入钱包地址');
+    try {
+      const data = await api('/api/wallets', {method:'POST', body: JSON.stringify({address, name})});
+      State.set('wallets', data.wallets);
+      State.set('selectedWallet', data.wallet.address);
+      $('walletAddress').value = ''; $('walletName').value = '';
+      this.render(); this.renderTabs(); this.loadSelectedData();
+      toast('已添加钱包');
+    } catch (e) { toast('添加失败: ' + e.message); }
+  },
+  async delete(address) {
+    if (!confirm('删除这个钱包？')) return;
+    await api('/api/wallets/' + encodeURIComponent(address), {method:'DELETE'});
+    await this.load(); toast('已删除');
+  },
+  async toggle(address, enabled) {
+    await api('/api/wallets/' + encodeURIComponent(address) + '/toggle', {method:'POST', body: JSON.stringify({enabled})});
+    await this.load(); toast(enabled ? '已启用' : '已停用');
+  },
+  async select(address) {
+    State.set('selectedWallet', address);
+    await api('/api/select-wallet', {method:'POST', body: JSON.stringify({address})}).catch(() => {});
+    this.render(); this.renderTabs(); SignalManager.render(); this.loadSelectedData();
+  },
+  async loadSelectedData() {
+    this.renderSelectedBox(); TrackedProjects.render();
+    await Promise.allSettled([PositionPanel.load(), ActivityPanel.load()]);
+  },
+  renderSelectedBox() {
+    const box = $('selectedWalletBox');
+    const wallets = State.get('wallets') || [];
+    const selectedWallet = State.get('selectedWallet');
+    const signals = State.get('signals') || [];
+    const autoTradeWallets = State.get('autoTradeWallets') || [];
+    const tradeStatus = State.get('tradeStatus');
+    const w = wallets.find(x => x.address === selectedWallet);
+    if (!w) { box.innerHTML = '<div class="hint">请选择钱包</div>'; return; }
+    const ac = autoTradeWallets.find(x => x.wallet === w.address) || {};
+    const amount = ac.amountUsd ?? (tradeStatus?.config?.usdPerOrder ?? 1);
+    const maxDiff = ac.maxPriceDiff ?? (tradeStatus?.config?.maxPriceDiff ?? 0.05);
+    const mode = ac.mode || 'global';
+    const signalCount = signals.filter(s => s.wallet === w.address).length;
+    box.innerHTML = `<div class="card">
+      <div class="walletName">${escapeHtml(w.name)}</div>
+      <div class="walletAddr">${w.address}</div>
+      <div class="walletMeta">
+        <span class="tag ${w.enabled?'green':'red'}">${w.enabled?'ON':'OFF'}</span>
+        <span class="tag blue">实时信号 ${signalCount}</span>
+        <span class="tag ${ac.enabled?'green':'amber'}">自动跟单 ${ac.enabled?'ON':'OFF'}</span>
+      </div>
+      <div class="grid3" style="margin-top:10px">
+        <input id="autoAmount" value="${escapeAttr(amount)}" placeholder="单笔U">
+        <input id="autoDiff" value="${escapeAttr(maxDiff)}" placeholder="价差0.05">
+        <select id="autoMode">
+          <option value="global" ${mode==='global'?'selected':''}>global</option>
+          <option value="paper" ${mode==='paper'?'selected':''}>paper</option>
+          <option value="sign" ${mode==='sign'?'selected':''}>sign</option>
+          <option value="live" ${mode==='live'?'selected':''}>live 真钱</option>
+        </select>
+      </div>
+      <div class="grid2" style="margin-top:8px">
+        <button class="btn ${ac.enabled?'btn-danger':'btn-primary'}" onclick="AutoTrade.toggleSelected(${!ac.enabled})">${ac.enabled?'关闭自动跟单':'开启自动跟单'}</button>
+        <button class="btn" onclick="AutoTrade.saveSelected()">保存参数</button>
+      </div>
+      <div class="hint" style="margin-top:8px">价差 0.05 = 最多比目标贵 5¢；live 还需 .env 安全开关；退出提醒会尝试全平</div>
+    </div>`;
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   AUTO TRADE
+   ═══════════════════════════════════════════════════════════════════ */
+const AutoTrade = {
+  async load() {
+    try {
+      const data = await api('/api/auto-trade/wallets', {timeoutMs: 30000});
+      State.set('autoTradeWallets', data.wallets || []);
+      WalletManager.render(); WalletManager.renderSelectedBox(); Settings.load();
+    } catch (e) { console.warn('自动跟单钱包加载失败', e.message); }
+  },
+  async toggleSelected(enabled) {
+    const address = State.get('selectedWallet');
+    if (!address) return toast('先选择钱包');
+    const amount = Number($('autoAmount')?.value || State.get('tradeStatus')?.config?.usdPerOrder || 1);
+    const maxPriceDiff = Number($('autoDiff')?.value || 0.05);
+    const mode = $('autoMode')?.value || 'global';
+    await this.save(address, {enabled, amountUsd: amount, maxPriceDiff, mode});
+    toast(enabled ? '已开启此钱包自动跟单' : '已关闭此钱包自动跟单');
+  },
+  async saveSelected() {
+    const address = State.get('selectedWallet');
+    if (!address) return toast('先选择钱包');
+    const ac = State.get('autoTradeWallets')?.find(x => x.wallet === address) || {};
+    const amount = Number($('autoAmount')?.value || 1);
+    const maxPriceDiff = Number($('autoDiff')?.value || 0.05);
+    const mode = $('autoMode')?.value || 'global';
+    await this.save(address, {enabled: ac.enabled === true, amountUsd: amount, maxPriceDiff, mode});
+    toast('已保存自动跟单参数');
+  },
+  async save(address, patch = {}) {
+    const cfg = State.get('autoTradeWallets')?.find(x => x.wallet === address) || {};
+    const tradeStatus = State.get('tradeStatus');
+    const body = {
+      wallet: address,
+      enabled: patch.enabled ?? cfg.enabled ?? false,
+      amountUsd: Number(patch.amountUsd ?? cfg.amountUsd ?? tradeStatus?.config?.usdPerOrder ?? 1),
+      maxPriceDiff: Number(patch.maxPriceDiff ?? cfg.maxPriceDiff ?? tradeStatus?.config?.maxPriceDiff ?? 0.05),
+      mode: patch.mode ?? cfg.mode ?? 'global'
+    };
+    const data = await api('/api/auto-trade/wallets', {method:'POST', body: JSON.stringify(body), timeoutMs: 30000});
+    State.set('autoTradeWallets', data.wallets || State.get('autoTradeWallets'));
+    WalletManager.render(); WalletManager.renderSelectedBox(); Settings.load();
+    return data;
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   TRADE PANEL
+   ═══════════════════════════════════════════════════════════════════ */
+const TradePanel = {
+  async loadStatus() {
+    const box = $('tradeStatusBox');
+    if (!box) return;
+    try {
+      const data = await api('/api/trade/status', {timeoutMs: 30000});
+      State.set('tradeStatus', data);
+      const c = data.config || {};
+      box.innerHTML = `<div class="walletMeta">
+        <span class="tag ${data.available?'green':'red'}">模块 ${data.available?'ON':'OFF'}</span>
+        <span class="tag ${c.enabled?'green':'amber'}">自动交易 ${c.enabled?'ON':'OFF'}</span>
+        <span class="tag ${c.dryRun?'amber':'green'}">dryRun ${c.dryRun?'ON':'OFF'}</span>
+        <span class="tag blue">mode ${escapeHtml(c.mode||'-')}</span>
+        <span class="tag ${c.privateKeyPresent?'green':'red'}">私钥 ${c.privateKeyPresent?'已填':'未填'}</span>
+        <span class="tag ${c.apiCredsPresent?'green':'amber'}">API凭证 ${c.apiCredsPresent?'已存在':'未派生'}</span>
+        <span class="tag purple">单笔 $${c.usdPerOrder||'-'}</span>
+        <span class="tag amber">自动live ${c.allowLiveAuto?'允许':'禁止'}</span>
+        <span class="tag cyan">自动价差 ≤ ${((Number(c.maxPriceDiff||0))*100).toFixed(1)}¢</span>
+        <span class="tag ${c.autoExitEnabled?'green':'amber'}">退出全平 ${c.autoExitEnabled?'ON':'OFF'}</span>
+        <span class="tag purple">退出滑点 ≤ ${((Number(c.autoExitMaxSlippage||0))*100).toFixed(1)}¢</span>
+      </div>
+      <div class="hint" style="margin-top:6px">funder: ${escapeHtml(c.funderAddress||'-')} · sigType: ${escapeHtml(c.signatureType??'-')}</div>`;
+    } catch (e) { box.innerHTML = '<span style="color:var(--red)">交易状态加载失败：' + escapeHtml(e.message) + '</span>'; }
+  },
+  async connect(derive) {
+    const box = $('tradeResultBox');
+    box.textContent = derive ? '正在派生/保存 CLOB API credentials...' : '正在检查交易账户连接...';
+    try {
+      const tokenId = $('tradeTokenId')?.value.trim() || '';
+      const data = await api('/api/trade/connect', {method:'POST', body: JSON.stringify({derive, tokenId}), timeoutMs: 60000});
+      State.set('tradeLastResult', data);
+      box.textContent = JSON.stringify(data.result || data, null, 2);
+      await this.loadStatus(); WalletManager.renderSelectedBox();
+      toast(derive ? '凭证处理完成' : '连接检查完成');
+    } catch (e) { box.textContent = '失败：' + e.message; toast('交易连接失败'); }
+  },
+  fillFromSignal() {
+    const signal = State.get('selectedSignal');
+    if (!signal) return toast('请先点击一条主动买入信号');
+    $('tradeTokenId').value = signal.tokenId || '';
+    $('tradeSide').value = signal.side === 'SELL' ? 'SELL' : 'BUY';
+    const p = Number(signal.currentFollowPrice ?? signal.estimatedPrice);
+    if (Number.isFinite(p) && p > 0) $('tradePrice').value = p.toFixed(4);
+    if (!$('tradeAmountUsd').value) $('tradeAmountUsd').value = '1';
+    $('tradeResultBox').textContent = `已填入：${signal.marketQuestion || ''} ${signal.outcome || ''}`;
+    toast('已用当前信号填入下单测试');
+  },
+  async runTest() {
+    const body = {
+      mode: $('tradeMode').value,
+      tokenId: $('tradeTokenId').value.trim(),
+      side: $('tradeSide').value,
+      price: Number($('tradePrice').value),
+      amountUsd: Number($('tradeAmountUsd').value || 1),
+      orderType: $('tradeOrderType').value,
+      confirmLive: $('tradeConfirm').value
+    };
+    const box = $('tradeResultBox');
+    box.textContent = '正在执行 ' + body.mode + ' 测试...';
+    try {
+      const data = await api('/api/trade/test-order', {method:'POST', body: JSON.stringify(body), timeoutMs: 90000});
+      State.set('tradeLastResult', data);
+      box.textContent = JSON.stringify(data.result || data, null, 2);
+      toast('交易测试完成');
+    } catch (e) { box.textContent = '失败：' + e.message; toast('交易测试失败'); }
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   ACCOUNT PANEL
+   ═══════════════════════════════════════════════════════════════════ */
+const AccountPanel = {
+  async load(refresh = false) {
+    const box = $('accountStatusBox');
+    if (box) box.textContent = '正在加载账户资金...';
+    try {
+      const data = await api('/api/account/status' + (refresh ? '?refresh=true' : ''), {timeoutMs: 45000});
+      State.set('accountStatus', data.status);
+      this.render();
+    } catch (e) {
+      if (box) box.innerHTML = '<span style="color:var(--red)">账户资金加载失败：' + escapeHtml(e.message) + '</span>';
+    }
+  },
+  render() {
+    const box = $('accountStatusBox');
+    if (!box) return;
+    const status = State.get('accountStatus');
+    if (!status) { box.innerHTML = '<div class="empty">暂无账户资金数据</div>'; return; }
+    const top = status.topActivePosition || status.topPosition;
+    const topSettlement = status.topSettlementPosition;
+    const dustCount = status.dustPositionsCount || 0;
+    const activeCount = status.activePositionsCount ?? 0;
+    const settlementCount = status.settlementPositionsCount ?? 0;
+    const effectiveCount = status.effectivePositionsCount ?? (activeCount + settlementCount);
+    const rawCount = status.rawPositionsCount ?? status.positionsCount ?? effectiveCount;
+    const riskTag = activeCount >= 5 ? '<span class="tag amber">活跃偏多</span>' : activeCount === 0 ? '<span class="tag green">无活跃仓</span>' : '<span class="tag green">活跃正常</span>';
+    const dustHint = dustCount ? '<div class="hint" style="margin-top:6px">已输/灰尘仓不计入活跃名额</div>' : '';
+    box.innerHTML = `<div class="card">
+      <div class="walletMeta">
+        <span class="tag green">账户 ${escapeHtml(status.shortAddress || short(status.address))}</span>
+        <span class="tag blue">${escapeHtml(new Date(status.updatedAt || Date.now()).toLocaleTimeString('zh-CN'))}</span>
+        ${riskTag}
+      </div>
+      ${row('可用 pUSD', escapeHtml(status.pusdBalanceText || '-'))}
+      ${row('活跃持仓', `${escapeHtml(status.activePositionsValueText || '$0.00')} / ${activeCount} 个`)}
+      ${row('待结算', `${escapeHtml(status.settlementPositionsValueText || '$0.00')} / ${settlementCount} 个`)}
+      ${row('已输/灰尘', `${escapeHtml(status.dustPositionsValueText || '$0.00')} / ${dustCount} 个`)}
+      ${row('自动止盈', status.takeProfit?.enabled ? `ON · PnL ≥ ${escapeHtml(status.takeProfit.pct)}%` : 'OFF')}
+      ${row('有效持仓', `${effectiveCount} 个（活跃 ${activeCount} + 待结算 ${settlementCount}）`)}
+      ${row('API原始仓位', `${rawCount} 个`)}
+      ${this.commandPositions(status)}
+      ${this.compactPosition('最大活跃持仓', top, 'green')}
+      ${topSettlement ? this.compactPosition('最大待结算', topSettlement, 'amber') : ''}
+      ${row('总权益', escapeHtml(status.equityText || '-'))}
+      ${row('有效权益', escapeHtml(status.effectiveEquityText || status.equityText || '-'))}
+      ${row('持仓 PnL', escapeHtml(status.cashPnlText || '-'))}
+      ${dustHint}
+    </div>`;
+  },
+  commandPositions(status) {
+    const items = status.commandPositions || [];
+    if (!items.length) return row('QQ卖出编号', '无可操作持仓');
+    const list = items.map(p => {
+      const idx = p.qqIndex || '-';
+      const title = escapeHtml(p.title || '未知市场');
+      const shortTitle = title.length > 42 ? title.slice(0, 41) + '…' : title;
+      const pnl = escapeHtml(p.percentPnlText && p.percentPnlText !== '-' ? p.percentPnlText : (p.cashPnlText || '-'));
+      return `<div class="row"><div class="k">#${idx} ${escapeHtml(p.bucketLabel || '活跃')}</div><div class="v">${shortTitle}<br>${escapeHtml(p.outcome || '-')} · ${escapeHtml(p.currentValueText || '-')} · ${pnl}</div></div>`;
+    }).join('');
+    return `<div style="margin-top:8px"><div class="section-title" style="margin-bottom:6px">QQ卖出编号</div>${list}<div class="hint" style="margin-top:6px">QQ 发 sell 1 卖出编号1；positions 刷新</div></div>`;
+  },
+  compactPosition(label, p, kind = 'blue') {
+    if (!p) return row(label, '无');
+    const link = p.marketUrl ? `<a href="${escapeAttr(p.marketUrl)}" target="_blank">${escapeHtml(p.title || '未知市场')}</a>` : escapeHtml(p.title || '未知市场');
+    return `${row(label, `${escapeHtml(p.currentValueText || '-')} · ${escapeHtml(p.outcome || '-')}`)}
+      ${row(label+'项目', link)}
+      ${row(label+'详情', `${escapeHtml(p.sizeText || '-')} @ ${escapeHtml(p.curPriceText || '-')} / PnL ${escapeHtml(p.cashPnlText || '-')}`)}
+      ${p.bucketLabel ? `<div class="walletMeta"><span class="tag ${kind}">${escapeHtml(p.bucketLabel)}</span><span class="tag amber">${escapeHtml(p.bucketReason||'')}</span></div>` : ''}`;
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   ACTIVITY PANEL
+   ═══════════════════════════════════════════════════════════════════ */
+const ActivityPanel = {
+  filter: 'all',
+  async load() {
+    const address = State.get('selectedWallet');
+    if (!address) return;
+    const box = $('activityList');
+    box.innerHTML = '<div class="empty">加载历史动作...</div>';
+    try {
+      const data = await api('/api/activity?address=' + encodeURIComponent(address) + '&limit=100', {timeoutMs: 45000});
+      State.set('activityItems', data.items || []);
+      $('activitySummary').textContent = `${data.walletName || short(address)} · 最近 ${data.items?.length || 0} 条 · ${new Date(data.updatedAt || Date.now()).toLocaleTimeString('zh-CN')}`;
+      this.render();
+    } catch (e) {
+      $('activitySummary').textContent = '历史动作加载失败';
+      box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+    }
+  },
+  setFilter(f) { this.filter = f; this.render(); },
+  render() {
+    ['actAll','actBuy','actSell','actRedeem'].forEach(id => $(id)?.classList.remove('active'));
+    const filterMap = {all:'actAll', buy:'actBuy', sell:'actSell', redeem:'actRedeem'};
+    const activeId = filterMap[this.filter];
+    if (activeId) $(activeId)?.classList.add('active');
+    let items = State.get('activityItems') || [];
+    if (this.filter !== 'all') items = items.filter(x => x.actionGroup === this.filter);
+    const box = $('activityList');
+    if (!items.length) { box.innerHTML = '<div class="empty">没有匹配的历史动作</div>'; return; }
+    box.innerHTML = items.map(a => `<div class="activity">
+      <div class="activityTitle">${a.marketUrl ? `<a href="${escapeAttr(a.marketUrl)}" target="_blank">${escapeHtml(a.title)}</a>` : escapeHtml(a.title)}</div>
+      <div class="activityLine"><span>${escapeHtml(a.action)} · ${escapeHtml(a.outcome)} · ${escapeHtml(a.role)}</span><span>${a.usdcSizeText}</span></div>
+      <div class="activityLine"><span>${a.priceText} · ${a.sizeText}</span><span>${escapeHtml(a.timeText)}</span></div>
+      <div class="walletMeta">
+        <span class="tag ${a.actionGroup==='buy'?'green':a.actionGroup==='sell'?'amber':a.actionGroup==='redeem'?'purple':'blue'}">${escapeHtml(a.actionGroup)}</span>
+        ${a.txUrl ? `<a class="tag blue" href="${escapeAttr(a.txUrl)}" target="_blank">tx</a>` : ''}
+      </div>
+    </div>`).join('');
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   POSITION PANEL
+   ═══════════════════════════════════════════════════════════════════ */
+const PositionPanel = {
+  async load() {
+    const address = State.get('selectedWallet');
+    if (!address) return;
+    const box = $('positions');
+    box.innerHTML = '<div class="empty">加载持仓...</div>';
+    try {
+      const data = await api('/api/positions?address=' + encodeURIComponent(address));
+      const ps = data.positions || [];
+      const total = ps.reduce((s, p) => s + Number(p.currentValue || 0), 0);
+      const pnl = ps.reduce((s, p) => s + Number(p.cashPnl || 0), 0);
+      $('posSummary').textContent = `${data.walletName || short(address)} · 持仓 ${ps.length} · 估值 $${total.toFixed(2)} · 盈亏 ${pnl>=0?'+':''}$${pnl.toFixed(2)}`;
+      if (!ps.length) { box.innerHTML = '<div class="empty">无开放持仓</div>'; return; }
+      box.innerHTML = ps.map(p => `<div class="pos">
+        <div class="posTitle">${p.url ? `<a href="${escapeAttr(p.url)}" target="_blank">${escapeHtml(p.title)}</a>` : escapeHtml(p.title)}</div>
+        <div class="posLine"><span>${escapeHtml(p.outcome)} · ${p.sizeText}</span><span>${p.currentValueText}</span></div>
+        <div class="posLine"><span>均价 ${p.avgPriceText} / 现价 ${p.curPriceText}</span><span class="${Number(p.cashPnl)>=0?'tag green':'tag red'}">${p.cashPnlText}</span></div>
+        <div class="walletMeta">
+          <span class="tag ${p.status?.code==='redeemable'?'green':p.status?.code==='proposed'?'amber':p.status?.code==='disputed'?'red':'blue'}">${escapeHtml(p.status?.badge||'-')}</span>
+          <span class="tag blue">${escapeHtml(p.status?.eta||'')}</span>
+        </div>
+      </div>`).join('');
+    } catch (e) {
+      $('posSummary').textContent = '持仓加载失败';
+      box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+    }
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   WALLET ANALYZER
+   ═══════════════════════════════════════════════════════════════════ */
+const WalletAnalyzer = {
+  async analyzeAll() {
+    const box = $('rankList');
+    box.innerHTML = '<div class="empty">分析中...</div>';
+    try {
+      const data = await api('/api/analyze-wallets');
+      const wallets = data.wallets || [];
+      box.innerHTML = wallets.map(w => `<div class="rankItem" onclick="WalletManager.select('${w.address}')">
+        <div class="rankTop">
+          <div>
+            <b>${escapeHtml(w.name || short(w.address))}</b>
+            <div class="walletAddr">${w.address}</div>
+          </div>
+          <div class="score">${w.score ?? 0}</div>
+        </div>
+        ${w.error ? `<div class="hint" style="color:var(--red)">${escapeHtml(w.error)}</div>` : `<div class="walletMeta">
+          <span class="tag green">估值 ${w.totalValueText}</span>
+          <span class="tag ${w.unrealizedPnl >= 0 ? 'green' : 'red'}">浮盈 ${w.unrealizedPnlText}</span>
+          <span class="tag blue">持仓 ${w.positionCount}</span>
+          <span class="tag amber">胜率 ${w.winRateText}</span>
+        </div>`}
+      </div>`).join('') || '<div class="empty">无结果</div>';
+    } catch (e) { box.innerHTML = '<div class="empty">分析失败 ' + escapeHtml(e.message) + '</div>'; }
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   DISCOVERY
+   ═══════════════════════════════════════════════════════════════════ */
+const Discovery = {
+  candidates: [],
+  async search() {
+    const box = $('discoverList');
+    box.innerHTML = '<div class="empty">正在发现候选钱包...</div>';
+    try {
+      const qs = new URLSearchParams({
+        category: $('discoverCategory').value, timePeriod: $('discoverPeriod').value,
+        orderBy: $('discoverOrder').value, limit: $('discoverLimit').value || '25',
+        minScore: $('discoverMinScore').value || '65', minPnl: $('discoverMinPnl').value || '0',
+        analyze: 'true'
+      });
+      const data = await api('/api/discover-wallets?' + qs.toString(), {timeoutMs: 65000});
+      this.candidates = data.candidates || [];
+      this.render();
+    } catch (e) { box.innerHTML = '<div class="empty">发现失败 ' + escapeHtml(e.message) + '</div>'; }
+  },
+  render() {
+    const box = $('discoverList');
+    if (!this.candidates.length) { box.innerHTML = '<div class="empty">没有候选钱包</div>'; return; }
+    const wallets = State.get('wallets') || [];
+    box.innerHTML = this.candidates.map((c, i) => {
+      const alreadyWatched = wallets.some(w => w.address === c.address);
+      return `<div class="rankItem">
+        <div class="rankTop">
+          <div>
+            <b>${escapeHtml(c.userName || short(c.address))}</b>
+            <div class="walletAddr">${c.address}</div>
+          </div>
+          <div class="score" style="color:${c.filteredOut ? 'var(--amber)' : 'var(--green)'}">${c.discoveryScore ?? 0}</div>
+        </div>
+        <div class="walletMeta">
+          <span class="tag ${c.filteredOut ? 'amber' : 'green'}">${escapeHtml(c.filterReason || '通过')}</span>
+          <span class="tag blue">PNL $${Number(c.pnl || 0).toFixed(0)}</span>
+          <span class="tag purple">VOL $${Number(c.vol || 0).toFixed(0)}</span>
+          <span class="tag ${alreadyWatched ? 'amber' : 'cyan'}">${alreadyWatched ? '已监控' : '新钱包'}</span>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn btn-sm btn-primary" onclick="Discovery.addOne(${i})">添加</button>
+          <button class="btn btn-sm" onclick="Discovery.fillForm('${c.address}','${escapeAttr(c.userName || short(c.address))}')">填入表单</button>
+        </div>
+      </div>`;
+    }).join('');
+  },
+  fillForm(address, name) {
+    $('walletAddress').value = address; $('walletName').value = name || '';
+    toast('已填入表单'); Nav.switch('wallets');
+  },
+  async addOne(i) { const c = this.candidates[i]; if (!c) return; await this.add([c]); },
+  async addQualified() {
+    const wallets = State.get('wallets') || [];
+    const list = this.candidates.filter(c => !c.filteredOut && !wallets.some(w => w.address === c.address));
+    if (!list.length) return toast('没有通过筛选且未监控的钱包');
+    await this.add(list);
+  },
+  async add(list) {
+    try {
+      const data = await api('/api/discover-wallets/add', {method:'POST', body: JSON.stringify({wallets: list})});
+      State.set('wallets', data.wallets || State.get('wallets'));
+      this.candidates = this.candidates.map(c => list.some(x => x.address === c.address) ? {...c, alreadyWatched: true} : c);
+      WalletManager.render(); WalletManager.renderTabs();
+      toast(`已添加 ${data.added?.length || 0} 个，更新 ${data.updated?.length || 0} 个`);
+      this.render();
+    } catch (e) { toast('添加失败: ' + e.message); }
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   METRICS
+   ═══════════════════════════════════════════════════════════════════ */
+const Metrics = {
+  update() {
+    const signals = State.get('signals') || [];
+    const selectedWallet = State.get('selectedWallet');
+    $('mSignals').textContent = signals.length;
+    $('mActiveBuy').textContent = signals.filter(isActiveBuy).length;
+    $('mExit').textContent = signals.filter(isExit).length;
+    $('mSelectedSignals').textContent = selectedWallet ? signals.filter(s => s.wallet === selectedWallet).length : 0;
+    WalletManager.renderSelectedBox();
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   SIGNAL MANAGER
+   ═══════════════════════════════════════════════════════════════════ */
+const SignalManager = {
+  scope: 'selected',
+  filter: 'all',
+  maxSignals: 2000,
+  maxDomItems: 300,
+  addSignal(event) {
+    let signals = State.get('signals') || [];
+    signals.unshift(event);
+    if (signals.length > this.maxSignals) signals = signals.slice(0, this.maxSignals);
+    State.set('signals', signals);
+    this.render(); WalletManager.render(); WalletManager.renderTabs(); Metrics.update();
+  },
+  setScope(s) { this.scope = s; State.set('scope', s); this.render(); WalletManager.renderTabs(); },
+  setFilter(f) { this.filter = f; this.render(); },
+  clearAll() {
+    State.set('signals', []); State.set('selectedSignal', null);
+    this.render(); WalletManager.render(); WalletManager.renderTabs();
+    SignalDetail.close(); Metrics.update();
+  },
+  select(id) {
+    const signals = State.get('signals') || [];
+    const signal = signals.find(s => s.id === id) || null;
+    State.set('selectedSignal', signal);
+    if (signal?.wallet && signal.wallet !== State.get('selectedWallet')) WalletManager.select(signal.wallet);
+    this.render(); SignalDetail.render();
+  },
+  getFiltered() {
+    const signals = State.get('signals') || [];
+    const selectedWallet = State.get('selectedWallet');
+    const q = ($('signalSearch')?.value || '').toLowerCase();
+    let arr = [...signals];
+    if (this.scope === 'selected' && selectedWallet) arr = arr.filter(s => s.wallet === selectedWallet);
+    if (this.filter === 'buy') arr = arr.filter(isActiveBuy);
+    if (this.filter === 'exit') arr = arr.filter(isExit);
+    if (this.filter === 'quality') arr = arr.filter(isQuality);
+    if (q) arr = arr.filter(s => `${s.walletName || ''} ${getWalletName(s.wallet)} ${s.marketQuestion || ''} ${s.outcome || ''}`.toLowerCase().includes(q));
+    return arr;
+  },
+  render() {
+    ['scopeSelected','scopeAll','scopeGroup','filterAll','filterBuy','filterExit','filterQuality'].forEach(id => $(id)?.classList.remove('active'));
+    $('scope' + (this.scope === 'selected' ? 'Selected' : this.scope === 'all' ? 'All' : 'Group'))?.classList.add('active');
+    $('filter' + (this.filter === 'all' ? 'All' : this.filter === 'buy' ? 'Buy' : this.filter === 'exit' ? 'Exit' : 'Quality'))?.classList.add('active');
+    WalletManager.renderTabs();
+    const list = $('signalList');
+    if (this.scope === 'group') { this.renderGrouped(); return; }
+    const arr = this.getFiltered();
+    if (!arr.length) { list.innerHTML = '<div class="empty">没有匹配信号</div>'; return; }
+    const domArr = arr.slice(0, this.maxDomItems);
+    const overflowCount = arr.length - domArr.length;
+    list.innerHTML = domArr.map(s => this.signalHtml(s)).join('') +
+      (overflowCount > 0 ? `<div class="empty" style="font-size:11px;padding:10px">仅显示最新 ${this.maxDomItems} 条，共 ${arr.length} 条</div>` : '');
+    Metrics.update();
+  },
+  signalHtml(s) {
+    const selectedSignal = State.get('selectedSignal');
+    const wallets = State.get('wallets') || [];
+    const walletName = s.walletName || wallets.find(w => w.address === s.wallet)?.name || short(s.wallet);
+    return `<div class="signal ${selectedSignal?.id === s.id ? 'selected' : ''}" onclick="SignalManager.select('${s.id}')">
+      <div class="icon">${signalIcon(s)}</div>
+      <div>
+        <div class="signalTitle">${escapeHtml(s.action || s.signalTitle || s.label || '信号')} ${escapeHtml(s.outcome || '')}</div>
+        <div class="signalDesc">${escapeHtml(walletName)} · ${escapeHtml(s.marketQuestion || '未知市场')} · ${escapeHtml(s.estimatedPriceText || '')}${s.source ? ` · ${escapeHtml(s.source)}` : ''}</div>
+        <div class="walletMeta">
+          ${signalTag(s)}
+          <span class="tag blue">${escapeHtml(s.role || '-')}</span>
+          <span class="tag ${isQuality(s) ? 'green' : 'amber'}">${escapeHtml(s.followVerdict || '')}</span>
+          <span class="tag purple">${escapeHtml(s.estimatedNotionalText || '')}</span>
+        </div>
+      </div>
+      <div class="signalTime">${escapeHtml(s.time || '')}</div>
+    </div>`;
+  },
+  renderGrouped() {
+    const list = $('signalList');
+    const wallets = State.get('wallets') || [];
+    const groups = wallets.map(w => ({wallet: w, signals: this.getFiltered().filter(s => s.wallet === w.address)}));
+    list.innerHTML = '<div class="walletBoard">' +
+      groups.map(g => `<div class="walletPanel">
+        <div class="walletPanelHead">
+          <div><b>${escapeHtml(g.wallet.name)}</b><div class="walletAddr">${short(g.wallet.address)}</div></div>
+          <span class="tag blue">${g.signals.length}</span>
+        </div>
+        ${g.signals.slice(0, 8).map(s => `<div class="miniSignal" onclick="SignalManager.select('${s.id}')">
+          <div><b>${escapeHtml(s.action || '信号')} ${escapeHtml(s.outcome || '')}</b></div>
+          <div class="signalDesc">${escapeHtml(s.marketQuestion || '未知市场')}</div>
+          <div class="walletMeta">${signalTag(s)}<span class="tag blue">${escapeHtml(s.estimatedPriceText || '')}</span><span class="tag purple">${escapeHtml(s.time || '')}</span></div>
+        </div>`).join('') || '<div class="empty">暂无信号</div>'}
+      </div>`).join('') + '</div>';
+    Metrics.update();
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   SIGNAL DETAIL
+   ═══════════════════════════════════════════════════════════════════ */
+const SignalDetail = {
+  render() {
+    const d = $('detail');
+    if (!d) return;
+    const s = State.get('selectedSignal');
+    if (!s) { d.innerHTML = '<div class="empty">点击信号查看详情</div>'; return; }
+    const wallets = State.get('wallets') || [];
+    const walletName = s.walletName || wallets.find(w => w.address === s.wallet)?.name || short(s.wallet);
+    const batchHtml = s.items ? `<div class="card" style="margin-top:10px"><div class="posTitle">合并明细</div>${s.items.map((x, i) => `<div class="row"><div class="k">${i+1}</div><div class="v" style="text-align:left">${x.openUrl ? `<a href="${escapeAttr(x.openUrl)}" target="_blank">${escapeHtml(x.marketQuestion||'未知市场')}</a>` : escapeHtml(x.marketQuestion||'未知市场')}<br>${escapeHtml(x.positionChange||x.action||'退出')} ${escapeHtml(x.outcome||'')} · ${escapeHtml(x.estimatedNotionalText||'-')} · ${escapeHtml(x.estimatedSizeText||'-')}</div></div>`).join('')}${s.foldedCount ? `<div class="hint" style="margin-top:6px">另有 ${s.foldedCount} 条已折叠</div>` : ''}</div>` : '';
+    const tracked = trackedForSignal(s);
+    const hasProject = s.wallet && (s.tokenId || s.conditionId || s.marketQuestion);
+    const trackHtml = hasProject ? `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      ${tracked ? `<button class="btn btn-sm btn-danger" onclick="TrackedProjects.remove('${escapeAttr(tracked.id)}')">取消选择此项目</button>` : `<button class="btn btn-sm btn-primary" onclick="TrackedProjects.add(State.get('selectedSignal'))">选择此项目 · 监控后续退出</button>`}
+      ${s.tokenId ? `<button class="btn btn-sm" onclick="TradePanel.fillFromSignal();Nav.switch('trade')">填入下单测试</button>` : ''}
+    </div>` : '';
+    const sourceText = s.type === 'activity_exit' ? 'Activity 轮询' : s.type === 'position_exit' ? '持仓变化轮询' : s.type === 'exit_batch' ? '退出合并' : s.source || '';
+    d.innerHTML = `<div class="card">
+      <div class="posTitle">${escapeHtml(s.action || s.signalTitle || '信号')}</div>
+      <div class="walletMeta">${signalTag(s)}<span class="tag blue">${escapeHtml(walletName)}</span><span class="tag ${isQuality(s)?'green':'amber'}">${escapeHtml(s.followVerdict||'')}</span></div>
+      ${row('钱包', `${escapeHtml(walletName)} ${short(s.wallet)}`)}
+      ${s.source ? row('来源', escapeHtml(sourceText)) : ''}
+      ${row('市场', s.openUrl ? `<a href="${escapeAttr(s.openUrl)}" target="_blank">${escapeHtml(s.marketQuestion||'未知市场')}</a>` : escapeHtml(s.marketQuestion||'未知市场'))}
+      ${row('方向', escapeHtml(s.outcome||'-'))}
+      ${row('价格 / 金额', `${escapeHtml(s.estimatedPriceText||'-')} / ${escapeHtml(s.estimatedNotionalText||'-')}`)}
+      ${row('仓位变化', escapeHtml(s.positionChangeDetail||s.positionChange||'-'))}
+      ${row('角色', escapeHtml(s.role||'-'))}
+      ${row('可跟价 / 价差', `${escapeHtml(s.currentFollowPriceText||'-')} / ${escapeHtml(s.followPriceDiffText||'-')}`)}
+      ${row('深度 / 样本', `${escapeHtml(s.liquidityDepthText||'-')} / ${escapeHtml(s.sampleFillText||'-')}`)}
+      ${row('原因', escapeHtml(s.followReasonsText||'-'))}
+      ${row('交易', s.txUrl ? `<a href="${escapeAttr(s.txUrl)}" target="_blank">Polygonscan ↗</a>` : '-')}
+      ${trackHtml}
+    </div>${batchHtml}`;
+  },
+  close() {
+    State.set('selectedSignal', null);
+    this.render(); SignalManager.render();
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   HELPER
+   ═══════════════════════════════════════════════════════════════════ */
+function getWalletName(addr) {
+  const wallets = State.get('wallets') || [];
+  return wallets.find(w => w.address === addr)?.name || short(addr);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   WEB SOCKET
+   ═══════════════════════════════════════════════════════════════════ */
+let ws = null;
+let wsReconnectDelay = 3000;
+const WS_RECONNECT_MAX = 60000;
+
+function connectWs() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}`);
+  ws.onopen = () => {
+    wsReconnectDelay = 3000;
+    $('connText').textContent = '已连接';
+    $('connDot').style.background = 'var(--green)';
+    $('connDot').style.boxShadow = 'var(--glow-green)';
+  };
+  ws.onclose = () => {
+    $('connText').textContent = `已断开 (${wsReconnectDelay/1000}s 后重连)`;
+    $('connDot').style.background = 'var(--red)';
+    $('connDot').style.boxShadow = 'var(--glow-red)';
+    setTimeout(() => { wsReconnectDelay = Math.min(wsReconnectDelay * 2, WS_RECONNECT_MAX); connectWs(); }, wsReconnectDelay);
+  };
+  ws.onerror = () => { $('connText').textContent = '连接错误'; };
+  ws.onmessage = e => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+    if (msg.type === 'init') {
+      State.set('wallets', msg.wallets || []);
+      State.set('trackedProjects', msg.trackedProjects || []);
+      State.set('autoTradeWallets', msg.autoTradeWallets || []);
+      State.set('accountStatus', msg.accountStatus || []);
+      State.set('selectedWallet', msg.selectedWallet || State.get('selectedWallet') || State.get('wallets')[0]?.address);
+      State.set('signals', msg.signals || []);
+      WalletManager.render(); WalletManager.renderTabs(); TrackedProjects.render();
+      AccountPanel.render(); KillSwitch.load(); Metrics.update();
+      if (State.get('selectedWallet')) WalletManager.loadSelectedData();
+    }
+    if (msg.type === 'wallets') {
+      State.set('wallets', msg.wallets || []);
+      State.set('selectedWallet', msg.selectedWallet || State.get('selectedWallet'));
+      WalletManager.render(); WalletManager.renderTabs(); Metrics.update();
+    }
+    if (msg.type === 'selectedWallet') {
+      State.set('selectedWallet', msg.selectedWallet || State.get('selectedWallet'));
+      WalletManager.render(); WalletManager.renderTabs(); TrackedProjects.render(); SignalManager.render();
+    }
+    if (msg.type === 'trackedProjects') {
+      State.set('trackedProjects', msg.projects || []);
+      TrackedProjects.render(); SignalManager.render(); Settings.load();
+    }
+    if (msg.type === 'autoTradeWallets') {
+      State.set('autoTradeWallets', msg.wallets || []);
+      WalletManager.render(); WalletManager.renderSelectedBox(); Settings.load();
+    }
+    if (msg.type === 'accountStatus') { State.set('accountStatus', msg.status || []); AccountPanel.render(); }
+    if (msg.type === 'connected') { $('connText').textContent = '已连接'; }
+    if (msg.type === 'disconnected') { $('connText').textContent = '已断开'; }
+    if (msg.type === 'event' && msg.event) { SignalManager.addSignal(msg.event); }
+    if (msg.type === 'tradeResult') {
+      State.set('tradeLastResult', msg);
+      const box = $('tradeResultBox');
+      if (box) {
+        const r = msg.result || {};
+        const lines = [];
+        if (msg.error) {
+          lines.push(`❌ 失败：${msg.error}`);
+        } else if (r.skipped) {
+          lines.push(`⏭️ 跳过：${r.reason || '未知原因'}`);
+          lines.push(`模式：${r.mode || '-'}`);
+        } else if (r.ok) {
+          const modeEmoji = r.mode === 'live' ? '🟢' : r.mode === 'sign' ? '🔵' : '🟡';
+          lines.push(`${modeEmoji} ${r.mode || '?'} 模式：${r.message || '处理完成'}`);
+          if (r.plan) {
+            lines.push(`市场：${msg.marketQuestion || r.plan.tokenId?.slice(0,16) || '-'}`);
+            lines.push(`方向：${msg.outcome || '-'}  ${r.plan.side || '-'}`);
+            lines.push(`限价：${r.plan.price ? (r.plan.price * 100).toFixed(1) + '¢' : '-'}  金额：$${r.plan.amountUsd ?? '-'}`);
+          }
+          if (r.fillVerification) {
+            const fv = r.fillVerification;
+            if (fv.warning) lines.push(`⚠️ ${fv.warning}`);
+            else if (fv.verified) lines.push(`✅ 实际成交：${fv.actualShares?.toFixed(4) ?? '-'} shares`);
+          }
+          if (r.autoExit) lines.push(`平仓 shares：${r.ownShares ?? '-'}  bid/限价：${r.bestBid ? (r.bestBid*100).toFixed(1)+'¢' : '-'} / ${r.limitPrice ? (r.limitPrice*100).toFixed(1)+'¢' : '-'}`);
+        }
+        lines.push(`时间：${msg.time || new Date().toLocaleTimeString('zh-CN')}`);
+        box.textContent = lines.join('\n');
+        box.style.color = msg.error ? 'var(--red)' : (r.skipped ? 'var(--amber)' : r.ok ? 'var(--green)' : 'var(--text)');
+      }
+      AccountPanel.load(false);
+    }
+    if (msg.type === 'killSwitch') { State.set('killSwitch', msg.killSwitch); KillSwitch.renderState(msg.killSwitch); }
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   APP
+   ═══════════════════════════════════════════════════════════════════ */
+const App = {
+  async refreshAll() {
+    Settings.load(); WalletManager.load(); TrackedProjects.load();
+    AutoTrade.load(); TradePanel.loadStatus(); AccountPanel.load(false);
+    KillSwitch.load(); SignalManager.render();
+  },
+  init() {
+    Settings.load(); WalletManager.load(); TrackedProjects.load();
+    AutoTrade.load(); TradePanel.loadStatus(); AccountPanel.load(false);
+    KillSwitch.load(); connectWs();
+    SignalManager.setScope('selected');
+    SignalManager.setFilter('all');
+    ActivityPanel.setFilter('all');
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   TAB NAVIGATION
+   ═══════════════════════════════════════════════════════════════════ */
+const Nav = {
+  current: 'signals',
+  switch(tab) {
+    document.querySelectorAll('.tab-panel').forEach(el => {
+      el.classList.toggle('tab-active', el.dataset.tab === tab);
+    });
+    document.querySelectorAll('[data-nav]').forEach(el => {
+      el.classList.toggle('nav-active', el.dataset.nav === tab);
+    });
+    this.current = tab;
+  }
+};
+
+/* Drawer control — patch SignalDetail */
+const _origSDRender = SignalDetail.render.bind(SignalDetail);
+SignalDetail.render = function () {
+  _origSDRender();
+  const hasSignal = !!State.get('selectedSignal');
+  document.getElementById('signalDrawer')?.classList.toggle('open', hasSignal);
+  document.getElementById('app')?.classList.toggle('drawer-active', hasSignal);
+};
+const _origSDClose = SignalDetail.close.bind(SignalDetail);
+SignalDetail.close = function () {
+  _origSDClose();
+  document.getElementById('signalDrawer')?.classList.remove('open');
+  document.getElementById('app')?.classList.remove('drawer-active');
+};
+
+/* Kill switch topbar badge — patch updateUI */
+const _origKillUI = KillSwitch.updateUI.bind(KillSwitch);
+KillSwitch.updateUI = function () {
+  _origKillUI();
+  const badge = document.getElementById('topKillIndicator');
+  if (!badge) return;
+  if (this.active) {
+    badge.textContent = '⚠ 已停止';
+    badge.className = 'kill-badge kill-active';
+  } else {
+    badge.textContent = '◉ 运行中';
+    badge.className = 'kill-badge kill-ok';
+  }
+};
+
+App.init();
+</script>
+</body>
+</html>
