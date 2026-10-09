@@ -9,7 +9,8 @@
     "positions": "node get-positions.js",
     "check": "node scripts/check-repo.js",
     "check:syntax": "node --check ws-bridge.js && node --check monitor-polymarket-ws.js && node --check get-positions.js && node --check btc-5m-analyzer.js && node --check scripts/check-repo.js",
-    "test": "node --test"
+    "test": "node --test",
+    "check:all": "npm run check && npm test"
   },
   "keywords": [
     "polymarket",
