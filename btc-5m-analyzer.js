@@ -38,7 +38,7 @@ function nowIso() { return new Date().toISOString(); }
 const PROXY_URL = cleanEnvValue(process.env.PROXY_URL);
 const agent = PROXY_URL ? new HttpsProxyAgent(PROXY_URL) : undefined;
 
-const BTC5M_ENABLED = envBool("BTC5M_ENABLED", true);
+const BTC5M_ENABLED = envBool("BTC5M_ENABLED", false);
 const BTC5M_EVENT_SLUG = cleanEnvValue(process.env.BTC5M_EVENT_SLUG);
 const BTC5M_CONDITION_ID = cleanEnvValue(process.env.BTC5M_CONDITION_ID);
 const BTC5M_UP_TOKEN_ID = cleanEnvValue(process.env.BTC5M_UP_TOKEN_ID);
