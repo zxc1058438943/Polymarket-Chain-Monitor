@@ -2,16 +2,17 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { ethers } = require("ethers");
 const { resolveWallet, formatPosition, fetchPositions } = require("../get-positions.js");
 
 const wallet = "0x2005d16a84ceefa912d4e380cd32e7ff827875ea";
 
 test("resolveWallet prefers a positional argument and checksums the address", () => {
-  assert.equal(resolveWallet(["node", "get-positions.js", wallet], { WATCH_WALLET: "bad" }), wallet);
+  assert.equal(resolveWallet(["node", "get-positions.js", wallet], { WATCH_WALLET: "bad" }), ethers.getAddress(wallet));
 });
 
 test("resolveWallet falls back to environment and rejects a missing or invalid address", () => {
-  assert.equal(resolveWallet(["node", "get-positions.js"], { WATCH_WALLET: wallet }), wallet);
+  assert.equal(resolveWallet(["node", "get-positions.js"], { WATCH_WALLET: wallet }), ethers.getAddress(wallet));
   assert.throws(() => resolveWallet(["node", "get-positions.js"], {}), /缺少钱包地址/);
   assert.throws(() => resolveWallet(["node", "get-positions.js", "not-an-address"], {}), /格式无效/);
 });
