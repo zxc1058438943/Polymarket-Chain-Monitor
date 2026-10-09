@@ -115,16 +115,34 @@ function checkSafeEnvTemplate() {
   assert.equal(values.QQ_SELL_COMMAND_MODE, "paper", "示例环境的 QQ 卖出模式必须默认使用模拟模式");
 }
 
+function checkJsonFiles() {
+  for (const relativePath of ["auto-trade-wallets.json"]) readJson(relativePath);
+}
+
+function checkGitignore() {
+  const ignorePath = path.join(root, ".gitignore");
+  assert.ok(fs.existsSync(ignorePath), "缺少 .gitignore");
+  const ignored = fs.readFileSync(ignorePath, "utf8");
+  assert.match(ignored, /^\.env$/m, ".gitignore 应忽略本地 .env");
+  assert.match(ignored, /^node_modules\/$/m, ".gitignore 应忽略 node_modules");
+  assert.match(ignored, /^trade-log\.jsonl$/m, ".gitignore 应忽略运行日志");
+  const realEnvPath = path.join(root, ".env");
+  if (fs.existsSync(realEnvPath)) {
+    const result = execFileSync("git", ["check-ignore", "-q", ".env"], { cwd: root, stdio: "ignore" });
+    assert.equal(result, undefined);
+  }
+}
+
 function main() {
   checkPackageMetadata();
   checkJavaScriptSyntax();
   checkInlineHtmlScripts();
   checkReadmeLinks();
   checkSafeEnvTemplate();
-  readJson("auto-trade-wallets.json");
-  console.log("准入自检通过：依赖清单、JavaScript 语法、HTML 内嵌脚本、README 本地链接、环境模板安全默认值与钱包 JSON 均正常。");
+  checkJsonFiles();
+  checkGitignore();
+  console.log("准入自检通过：依赖清单、JavaScript 语法、HTML 内嵌脚本、README 本地链接、安全环境默认值、Git 忽略规则与 JSON 配置均正常。");
 }
-
 if (require.main === module) {
   try {
     main();
@@ -134,4 +152,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { main, checkPackageMetadata, checkJavaScriptSyntax, checkInlineHtmlScripts, checkReadmeLinks, checkSafeEnvTemplate };
+module.exports = { main, checkPackageMetadata, checkJavaScriptSyntax, checkInlineHtmlScripts, checkReadmeLinks, checkSafeEnvTemplate, checkJsonFiles, checkGitignore };
