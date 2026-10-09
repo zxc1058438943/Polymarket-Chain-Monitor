@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { ethers } = require("ethers");
-const { resolveWallet, formatPosition, fetchPositions } = require("../get-positions.js");
+const { resolveWallet, formatPosition, booleanOrFalse, fetchPositions } = require("../get-positions.js");
 
 const wallet = "0x2005d16a84ceefa912d4e380cd32e7ff827875ea";
 
@@ -34,6 +34,10 @@ test("formatPosition normalizes numbers and optional fields", () => {
   assert.equal(result.currentValue, 1.5);
   assert.equal(result.redeemable, true);
   assert.equal(result.asset, null);
+  assert.equal(formatPosition({ redeemable: "false" }).redeemable, false);
+  assert.equal(formatPosition({ redeemable: "true" }).redeemable, true);
+  assert.equal(booleanOrFalse("off"), false);
+  assert.equal(booleanOrFalse(1), true);
 });
 
 test("fetchPositions forms a bounded Data API request and formats results", async () => {
@@ -58,6 +62,7 @@ test("fetchPositions forms a bounded Data API request and formats results", asyn
   assert.equal(rows.length, 1);
   assert.equal(rows[0].market, "Test market");
   assert.equal(rows[0].size, 4);
+  assert.equal(rows.truncated, false);
 });
 
 test("fetchPositions reports non-success HTTP responses clearly", async () => {
@@ -68,5 +73,24 @@ test("fetchPositions reports non-success HTTP responses clearly", async () => {
       text: async () => "service unavailable",
     })),
     /HTTP 503/
+  );
+});
+
+test("fetchPositions flags a result set that reaches the configured page cap", async () => {
+  let calls = 0;
+  const page = Array.from({ length: 500 }, (_, i) => ({ asset: `token-${calls}-${i}`, size: "1" }));
+  const rows = await fetchPositions(wallet, async (url) => {
+    calls += 1;
+    return { ok: true, json: async () => page };
+  });
+  assert.equal(calls, 10);
+  assert.equal(rows.length, 5000);
+  assert.equal(rows.truncated, true);
+});
+
+test("fetchPositions rejects malformed API response shapes", async () => {
+  await assert.rejects(
+    fetchPositions(wallet, async () => ({ ok: true, json: async () => ({ positions: [] }) })),
+    /返回格式异常/
   );
 });
