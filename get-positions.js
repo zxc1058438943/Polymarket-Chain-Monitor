@@ -18,7 +18,7 @@ const { ethers } = require("ethers");
 const DATA_API_BASE = (process.env.PM_DATA_API_BASE_URL || "https://data-api.polymarket.com").replace(/\/+$/, "");
 const REQUEST_TIMEOUT_MS = Math.max(1000, Number(process.env.POSITIONS_TIMEOUT_MS) || 15000);
 const PAGE_SIZE = 500;
-const MAX_PAGES = 10;
+const MAX_PAGES = Math.max(1, Math.min(100, Number(process.env.POSITIONS_MAX_PAGES) || 10));
 
 function resolveWallet(argv = process.argv, env = process.env) {
   const arg = argv.slice(2).find((item) => !item.startsWith("--"));
@@ -40,6 +40,12 @@ function numberOrNull(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function booleanOrFalse(value) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) && value !== 0;
+  return ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
+}
+
 function formatPosition(position = {}) {
   const size = numberOrNull(position.size);
   const avgPrice = numberOrNull(position.avgPrice);
@@ -56,7 +62,7 @@ function formatPosition(position = {}) {
     currentValue,
     cashPnl,
     percentPnl,
-    redeemable: Boolean(position.redeemable),
+    redeemable: booleanOrFalse(position.redeemable),
     endDate: position.endDate || null,
     asset: position.asset || null,
   };
@@ -67,6 +73,7 @@ async function fetchPositions(wallet, fetchImpl = globalThis.fetch) {
     throw new Error("当前 Node.js 运行环境没有内置 fetch；请升级到 Node.js 18 或更高版本。");
   }
   const positions = [];
+  let reachedEnd = false;
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const url = new URL(`${DATA_API_BASE}/positions`);
     url.searchParams.set("user", wallet);
@@ -108,14 +115,22 @@ async function fetchPositions(wallet, fetchImpl = globalThis.fetch) {
     }
 
     positions.push(...data);
-    if (data.length < PAGE_SIZE) break;
+    if (data.length < PAGE_SIZE) {
+      reachedEnd = true;
+      break;
+    }
   }
-  return positions.map(formatPosition);
+  const formatted = positions.map(formatPosition);
+  Object.defineProperty(formatted, "truncated", { value: !reachedEnd, enumerable: false });
+  return formatted;
 }
 
 function printPositions(wallet, positions) {
   console.log(`钱包：${wallet}`);
   console.log(`持仓数量：${positions.length}`);
+  if (positions.truncated) {
+    console.warn(`注意：查询已达到最多 ${MAX_PAGES} 页（每页 ${PAGE_SIZE} 条），可能还有未显示持仓。可设置 POSITIONS_MAX_PAGES 提高上限。`);
+  }
   if (process.argv.includes("--json")) {
     console.log(JSON.stringify(positions, null, 2));
     return;
@@ -158,4 +173,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { resolveWallet, formatPosition, fetchPositions };
+module.exports = { resolveWallet, formatPosition, booleanOrFalse, fetchPositions };
