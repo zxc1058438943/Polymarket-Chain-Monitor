@@ -1,90 +1,161 @@
-[
-  {
-    "wallet": "0x2005d16a84ceefa912d4e380cd32e7ff827875ea",
-    "walletName": "0x2005...75ea",
-    "enabled": false,
-    "mode": "global",
-    "amountUsd": 1.5,
-    "maxPriceDiff": 0.05,
-    "note": "",
-    "updatedAt": "2026-05-07T07:43:30.794Z",
-    "createdAt": "2026-05-07T07:40:55.877Z"
-  },
-  {
-    "wallet": "0x3d3ca331c493bed9208e242af7589ff73ef415ed",
-    "walletName": "0x3d3c...15ed",
-    "enabled": true,
-    "mode": "live",
-    "amountUsd": 1,
-    "maxPriceDiff": 0.075,
-    "note": "",
-    "updatedAt": "2026-05-08T15:40:12.841Z",
-    "createdAt": "2026-05-06T18:53:38.842Z"
-  },
-  {
-    "wallet": "0x53757615de1c42b83f893b79d4241a009dc2aeea",
-    "walletName": "0x53757615de1c42b83f893b79d4241a009dc2aeea",
-    "enabled": true,
-    "mode": "live",
-    "amountUsd": 1.06,
-    "maxPriceDiff": 0.065,
-    "note": "",
-    "updatedAt": "2026-05-11T06:21:13.327Z",
-    "createdAt": "2026-05-11T06:21:13.327Z"
-  },
-  {
-    "wallet": "0x9cb990f1862568a63d8601efeebe0304225c32f2",
-    "walletName": "0x9cb9...32f2",
-    "enabled": false,
-    "mode": "sign",
-    "amountUsd": 1,
-    "maxPriceDiff": 0.05,
-    "note": "",
-    "updatedAt": "2026-05-08T15:51:29.997Z",
-    "createdAt": "2026-05-07T20:45:12.865Z"
-  },
-  {
-    "wallet": "0xa38e7869b24dc48bb4216fb48fe86dbdfcbb8917",
-    "walletName": "0xa38e...8917",
-    "enabled": false,
-    "mode": "live",
-    "amountUsd": 1.2,
-    "maxPriceDiff": 0.05,
-    "note": "",
-    "updatedAt": "2026-05-07T20:24:06.830Z",
-    "createdAt": "2026-05-07T09:46:19.687Z"
-  },
-  {
-    "wallet": "0xcc500cbcc8b7cf5bd21975ebbea34f21b5644c82",
-    "walletName": "0xcc50...4c82",
-    "enabled": false,
-    "mode": "sign",
-    "amountUsd": 1.5,
-    "maxPriceDiff": 0.05,
-    "note": "",
-    "updatedAt": "2026-05-07T10:10:42.775Z",
-    "createdAt": "2026-05-06T18:00:55.753Z"
-  },
-  {
-    "wallet": "0x9495425feeb0c250accb89275c97587011b19a27",
-    "walletName": "LaBradfordSmith22",
-    "enabled": true,
-    "mode": "live",
-    "amountUsd": 4,
-    "maxPriceDiff": 0.065,
-    "note": "",
-    "updatedAt": "2026-05-11T03:06:24.710Z",
-    "createdAt": "2026-05-08T00:34:49.306Z"
-  },
-  {
-    "wallet": "0x9f2fe025f84839ca81dd8e0338892605702d2ca8",
-    "walletName": "surfandturf",
-    "enabled": true,
-    "mode": "live",
-    "amountUsd": 1.06,
-    "maxPriceDiff": 0.065,
-    "note": "",
-    "updatedAt": "2026-05-11T05:01:39.526Z",
-    "createdAt": "2026-05-11T05:00:42.957Z"
+#!/usr/bin/env node
+"use strict";
+
+/**
+ * Query Polymarket positions for a wallet.
+ *
+ * Usage:
+ *   npm run positions -- 0xYourWalletAddress
+ *   WATCH_WALLET=0xYourWalletAddress npm run positions
+ *   PM_FUNDER_ADDRESS=0xYourWalletAddress npm run positions
+ *
+ * Requires Node.js >= 18 (built-in fetch). Does not place or sign orders.
+ */
+require("dotenv").config();
+
+const { ethers } = require("ethers");
+
+const DATA_API_BASE = (process.env.PM_DATA_API_BASE_URL || "https://data-api.polymarket.com").replace(/\/+$/, "");
+const REQUEST_TIMEOUT_MS = Math.max(1000, Number(process.env.POSITIONS_TIMEOUT_MS) || 15000);
+const PAGE_SIZE = 500;
+const MAX_PAGES = 10;
+
+function resolveWallet(argv = process.argv, env = process.env) {
+  const arg = argv.slice(2).find((item) => !item.startsWith("--"));
+  const value = arg || env.PM_FUNDER_ADDRESS || env.WATCH_WALLET || "";
+  if (!value) {
+    throw new Error(
+      "缺少钱包地址。请使用 npm run positions -- 0x地址，或设置 PM_FUNDER_ADDRESS / WATCH_WALLET。"
+    );
   }
-]
+  if (!ethers.isAddress(value)) {
+    throw new Error("钱包地址格式无效，请提供完整的 EVM 地址（0x 开头，42 个字符）。");
+  }
+  return ethers.getAddress(value);
+}
+
+function numberOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatPosition(position = {}) {
+  const size = numberOrNull(position.size);
+  const avgPrice = numberOrNull(position.avgPrice);
+  const curPrice = numberOrNull(position.curPrice);
+  const currentValue = numberOrNull(position.currentValue);
+  const cashPnl = numberOrNull(position.cashPnl);
+  const percentPnl = numberOrNull(position.percentPnl);
+  return {
+    market: position.title || position.market || "未知市场",
+    outcome: position.outcome || "-",
+    size,
+    avgPrice,
+    curPrice,
+    currentValue,
+    cashPnl,
+    percentPnl,
+    redeemable: Boolean(position.redeemable),
+    endDate: position.endDate || null,
+    asset: position.asset || null,
+  };
+}
+
+async function fetchPositions(wallet, fetchImpl = globalThis.fetch) {
+  if (typeof fetchImpl !== "function") {
+    throw new Error("当前 Node.js 运行环境没有内置 fetch；请升级到 Node.js 18 或更高版本。");
+  }
+  const positions = [];
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const url = new URL(`${DATA_API_BASE}/positions`);
+    url.searchParams.set("user", wallet);
+    url.searchParams.set("limit", String(PAGE_SIZE));
+    url.searchParams.set("offset", String(page * PAGE_SIZE));
+    url.searchParams.set("sizeThreshold", "0");
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let response;
+    try {
+      response = await fetchImpl(url, {
+        method: "GET",
+        headers: { accept: "application/json", "user-agent": "polymarket-chain-monitor/1.0" },
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (error && error.name === "AbortError") {
+        throw new Error(`查询持仓超时（${REQUEST_TIMEOUT_MS}ms）。请检查网络或代理。`);
+      }
+      throw new Error(`查询 Polymarket 持仓失败：${error.message || error}`);
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`Polymarket Data API 返回 HTTP ${response.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`);
+    }
+
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error("Polymarket Data API 返回的不是有效 JSON。");
+    }
+    if (!Array.isArray(data)) {
+      throw new Error("Polymarket Data API 返回格式异常：预期为持仓数组。");
+    }
+
+    positions.push(...data);
+    if (data.length < PAGE_SIZE) break;
+  }
+  return positions.map(formatPosition);
+}
+
+function printPositions(wallet, positions) {
+  console.log(`钱包：${wallet}`);
+  console.log(`持仓数量：${positions.length}`);
+  if (process.argv.includes("--json")) {
+    console.log(JSON.stringify(positions, null, 2));
+    return;
+  }
+  if (positions.length === 0) {
+    console.log("当前没有查询到持仓。");
+    return;
+  }
+
+  const money = (n) => n === null ? "-" : n.toFixed(4);
+  const rows = positions.map((p) => ({
+    市场: p.market.length > 42 ? `${p.market.slice(0, 39)}...` : p.market,
+    结果: p.outcome,
+    份额: money(p.size),
+    均价: money(p.avgPrice),
+    现价: money(p.curPrice),
+    当前价值: money(p.currentValue),
+    浮动盈亏: money(p.cashPnl),
+    盈亏率: p.percentPnl === null ? "-" : `${p.percentPnl.toFixed(2)}%`,
+    可赎回: p.redeemable ? "是" : "否",
+  }));
+  console.table(rows);
+}
+
+async function main() {
+  if (process.argv.includes("--help") || process.argv.includes("-h")) {
+    console.log("用法：npm run positions -- <钱包地址> [--json]");
+    console.log("也可设置 PM_FUNDER_ADDRESS 或 WATCH_WALLET 环境变量。");
+    return;
+  }
+  const wallet = resolveWallet();
+  const positions = await fetchPositions(wallet);
+  printPositions(wallet, positions);
+}
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(`错误：${error.message || error}`);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { resolveWallet, formatPosition, fetchPositions };
