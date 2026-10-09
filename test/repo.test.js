@@ -94,3 +94,8 @@ test("fetchPositions rejects malformed API response shapes", async () => {
     /返回格式异常/
   );
 });
+
+test("boolean-like API fields are parsed instead of using JavaScript truthiness", () => {
+  assert.equal(formatPosition({ redeemable: "false" }).redeemable, false);
+  assert.equal(formatPosition({ redeemable: "true" }).redeemable, true);
+});
