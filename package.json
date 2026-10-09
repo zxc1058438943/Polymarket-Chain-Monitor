@@ -1,26 +1,34 @@
 {
   "name": "polymarket-chain-monitor",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Polymarket 多钱包链上监控工具，默认使用安全的模拟交易配置",
+  "main": "ws-bridge.js",
   "scripts": {
     "start": "node ws-bridge.js",
     "monitor": "node monitor-polymarket-ws.js",
     "positions": "node get-positions.js",
-    "check": "node --check ws-bridge.js && node --check monitor-polymarket-ws.js && node --check get-positions.js",
-    "trade:check": "node -e \"require('./trade-executor').testConnectivity({derive:false}).then(x=>console.log(JSON.stringify(x,null,2))).catch(e=>{console.error(e);process.exit(1)})\""
+    "check": "node scripts/check-repo.js",
+    "check:syntax": "node --check ws-bridge.js && node --check monitor-polymarket-ws.js && node --check get-positions.js && node --check btc-5m-analyzer.js && node --check scripts/check-repo.js",
+    "test": "node --test"
   },
-  "keywords": [],
+  "keywords": [
+    "polymarket",
+    "wallet-monitor",
+    "polygon"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
+    "@polymarket/clob-client-v2": "^1.0.3",
     "dotenv": "^17.4.2",
     "ethers": "^6.16.0",
     "https-proxy-agent": "^9.0.0",
     "node-fetch": "^3.3.2",
-    "ws": "^8.20.0",
-    "@polymarket/clob-client-v2": "^1.0.0",
-    "viem": "^2.37.0"
+    "viem": "^2.48.8",
+    "ws": "^8.20.0"
   }
 }
