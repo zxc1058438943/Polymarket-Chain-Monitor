@@ -1,4 +1,4 @@
-tracked-projects_example.json/**
+/**
  * Polymarket multi-wallet monitor
  *
  * Features:
